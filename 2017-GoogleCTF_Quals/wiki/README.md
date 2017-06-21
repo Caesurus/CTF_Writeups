@@ -166,7 +166,7 @@ OK, back to looking for other options (not necessarily in this order).
 
 - I don't have to overwrite the return pointer, what if I just overwrite the two values on the stack before the return. One gets loaded into `rbx`(this is the pointer for our user read buffer), and the other gets loaded into `rbp`. Neither is helpful without knowing a usable address.
 
-- Can I return to the one constant 'known' address, the `vsyscall` memory? I got wierd crashes when returning to `0xffffffffff600000`. So I didn't persue this further *sigh... hindsight is 20/20*
+- Can I return to the one constant 'known' address, the `vsyscall` memory? I got wierd crashes when returning to `0xffffffffff600000` or `0xffffffffff600009`. So I didn't persue this further *sigh... hindsight is 20/20*
 
 - Is one of the users passwords designed to pass something to `strdup()` that is somehow needed? 
 
@@ -191,7 +191,9 @@ The missing piece was that I didn't realize that my call to the `vsyscall` worke
    0xffffffffff600007:	syscall 
    0xffffffffff600009:	ret  
 ```
-Syscall 0x60 is executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough. Trying to set a breakpoint at the return didn't help either.
+The limitation is that you have to jump to an authorized location in the `vsyscall` page. So you can return to `0xffffffffff600000` but you can NOT return to `0xffffffffff600009`. The access into the vsyscall page causes a exception because it's not actually executable. The page fault handler in the kernel will determine where the fault occured and handle it accordingly. But this means only 'known' vsyscalls will work. For a detailed explaination, [read this](https://0xax.gitbooks.io/linux-insides/content/SysCall/syscall-3.html)
+
+Jumping to `0xffffffffff600000` causes the syscall 0x60 is executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough. Trying to set a breakpoint at the return didn't help either.
 ```
 Cannot insert breakpoint 4.
 Cannot access memory at address 0xffffffffff600009
