@@ -199,7 +199,7 @@ Cannot insert breakpoint 4.
 Cannot access memory at address 0xffffffffff600009
 ```
 
-* Now the final solution requires returning to a position in the code where the return address is `init()` offset: `0xe10`. 
+* Now the final solution requires returning to a position in the code where the return address is `init()` offset: `0xe10`. Stack location 24 from the initial overwritten return pointer. So writing `0xffffffffff600000` 23 times, will set up the stack correctly to return to `init()`.
 
 * When this is called, code will continue executing and eventually do a `read()`. 
 
