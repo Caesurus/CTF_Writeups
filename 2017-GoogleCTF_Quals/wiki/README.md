@@ -8,7 +8,8 @@
 ## Synopsis / TL;DR
 The binary `challenge` is a Position Independent Executable([PIE](https://en.wikipedia.org/wiki/Position-independent_code)). This means that all of the executable application code is in randomized memory locations.
 
-The binary asks you to input a username, and then you're expected to supply the password for that user account. The password is read out of a file: `db/<username>`. There is no way to know what the correct password is. The password must also be a multiple of 8. But we'll get round to why later. If the correct password is supplied, the flag will be printed out.
+The binary asks you to input a username, and then you're expected to supply the password for that user account. The password is read out of a file: `db/<username>`. There is no way to know what the correct password is. 
+The length of the user entered password must also be a multiple of 8. But we'll get round to why later. If the correct password is supplied, the flag will be printed out.
 
 The function accepting input for the password has a buffer overflow vulnerability, but since its a PIE, ~~we have no usable places to return to~~ (or so I thought). I attempted to return to the only *'known'* memory location available `0xffffffffff600000`(vsyscall) but got crashes I didn't understand. I tried finding a way to leak a memory location but was unsuccessful.
 
@@ -42,7 +43,7 @@ Let me apologize up front, "sorry" :)
 
 ### Step 0, Checking out the binary
 
-After downloading the binary locally, lets look at binary to see what we're dealing with:
+After downloading the binary locally, lets look it to see what we're dealing with:
 ```bash
 code@box:~/CTF_Writeups/2017-GoogleCTF_Quals/wiki$ checksec challenge
     Arch:     amd64-64-little
@@ -54,7 +55,7 @@ code@box:~/CTF_Writeups/2017-GoogleCTF_Quals/wiki$ checksec challenge
 Sigh... After having just finished the 'Inst Prof' challenge, I knew that the `PIE enabled` meant this wasn't going to be an easy one.
 For those not familiar with Position Independent Executable([PIE](https://en.wikipedia.org/wiki/Position-independent_code)), it basically means the code executes properly regardless of its absolute address. That base address is randomized on every run, so there is no way (that I know of) to guess it. 
 
-*Thought* _I'm going to need to leak something to calculate the base address_
+**I Thought to myself:** _I'm going to need to leak something to calculate the base address_
 
 Lets look at the memory map (with ASLR disabled), 
 ```
@@ -89,7 +90,8 @@ xmlset_roodkcableoj28840ybtide
 Fortimanager_Access
 1MB@tMaN
 ```
-Great! So I created a directory called `db` and created files in that directory. In the files I added a default password.
+Great! So I created a directory called `db` and created files in that directory. In the files I added a default password. These users are all related to known backdoors or default password combinations for various routers. 
+I briefly toyed with the thought of trying known default username/password combos, but if that was the intended solution this wouldn't be in the 'pwn' category.
 
 Then I proceeded to try to get a better understanding of what was going on. 
 
@@ -168,13 +170,16 @@ OK, back to looking for other options (not necessarily in this order).
 
 - Can I return to the one constant 'known' address, the `vsyscall` memory? I got wierd crashes when returning to `0xffffffffff600000` or `0xffffffffff600009`. So I didn't persue this further *sigh... hindsight is 20/20*
 
+- Commands are also user inputs, and you can enter 0x80 bytes. If you input "USER\x00" and then pass additional data, it will get written to the buffer on the stack. 
+I went looking for code that would use uninitalized stack variables. I didn't find any.
+
 - Is one of the users passwords designed to pass something to `strdup()` that is somehow needed? 
 
 - Are the password lengths for each user different, and can I somehow detect that?
 
 *Getting desperate...*
 
-- The string compare exits on the first byte that doesn't match... can do a timing attack? NO... That code is so fast and the network latency makes that impossible.
+- The string compare exits on the first byte that doesn't match... can I do a timing attack? NO... That code is so fast and the network latency makes that impossible.
 
 And so after hours and hours of working on the problem I'm sad to say I gave up. 
 
@@ -193,7 +198,7 @@ The missing piece was that I didn't realize that my call to the `vsyscall` worke
 ```
 The limitation is that you have to jump to an authorized location in the `vsyscall` page. So you can return to `0xffffffffff600000` but you can NOT return to `0xffffffffff600009`. The access into the vsyscall page causes a exception because it's not actually executable. The page fault handler in the kernel will determine where the fault occured and handle it accordingly. But this means only 'known' vsyscalls will work. For a detailed explaination, [read this](https://0xax.gitbooks.io/linux-insides/content/SysCall/syscall-3.html)
 
-Jumping to `0xffffffffff600000` causes the syscall 0x60 is executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough. Trying to set a breakpoint at the return didn't help either.
+Jumping to `0xffffffffff600000` causes the syscall 0x60 to be executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough. Trying to set a breakpoint at the return didn't help either.
 ```
 Cannot insert breakpoint 4.
 Cannot access memory at address 0xffffffffff600009
@@ -205,7 +210,7 @@ Cannot access memory at address 0xffffffffff600009
 
 * If this is passed 8 NULLs, this is then compared to the users "password" which at this point is pointing to a NULL. 
 
-* Two NULLs are compared and the string comparision function returns a success, and the flag will be printed out `system("cat flag.txt")`.
+* Two NULLs are compared and the string comparision function returns a success, and the flag will be printed out: `system("cat flag.txt")`.
 
 Although I'm slightly disappointed that I didn't solve this, I did learn a lot and enjoyed the process. Thanks GoogleCTF2017 Quals for a set of fun challenges :)
 
