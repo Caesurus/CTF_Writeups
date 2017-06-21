@@ -22,9 +22,11 @@ Dump of assembler code from 0xffffffffff600000 to 0xffffffffff60000a:
    0xffffffffff600007:	syscall 
    0xffffffffff600009:	ret    
 ```
-It turns out that what I did not realize was that the call to `0xffffffffff600000` was working just fine, but gdb was not breaking upon return, execution would work fine and it was just taking the next item off the stack to return to *faceplam*.
+It turns out that what I did not realize was that the call to `0xffffffffff600000` was working just fine, but gdb was not breaking upon return, execution would work fine and it was just taking the next item off the stack to return to.
 
-The final solution involves finding a good location to return to that is already on the stack. So you don't actually have Remote Code Execution (REC) to solve this.
+* *facepalm* *.
+
+The final solution involves finding a good location to return to that is already on the stack. So you don't actually have Remote Code Execution (RCE) to solve this.
 
 Final exploit code [here](./exploit.py)
 
@@ -38,7 +40,7 @@ I'll try to go into what the thought process was (as best as I can remember), so
 I will try to explain things as simply as possible, in my attempt to do so I'll probably seem a bit long winded to those who are familiar with the concepts being covered here. 
 Let me apologize up front, "sorry" :)
 
-### Analyzing the binary
+### Step 0, Checking out the binary
 
 After downloading the binary locally, lets look at binary to see what we're dealing with:
 ```bash
@@ -50,11 +52,11 @@ code@box:~/CTF_Writeups/2017-GoogleCTF_Quals/wiki$ checksec challenge
     PIE:      PIE enabled
 ```
 Sigh... After having just finished the 'Inst Prof' challenge, I knew that the `PIE enabled` meant this wasn't going to be an easy one.
-For those not familiar with Position Independent Executable([PIE](https://en.wikipedia.org/wiki/Position-independent_code)), it basically means the code executes properly regardless of its absolute address. That base absolute address is randomized on every run, so there is no way (that I know of) to guess it. 
+For those not familiar with Position Independent Executable([PIE](https://en.wikipedia.org/wiki/Position-independent_code)), it basically means the code executes properly regardless of its absolute address. That base address is randomized on every run, so there is no way (that I know of) to guess it. 
 
 *Thought* _I'm going to need to leak something to calculate the base address_
 
-Lets look at the memory map, 
+Lets look at the memory map (with ASLR disabled), 
 ```
 Start              End                Perm      Name
 0x0000555555554000 0x0000555555556000 r-xp      /home/code/CTF_Writeups/2017-GoogleCTF_Quals/wiki/challenge
@@ -79,7 +81,7 @@ Start              End                Perm      Name
 
 ### Step 1, Let's make the binary operate correctly locally.
 
-When I first fired up the binary and started playing with it, I didn't have the directory structure in place for it to read out any valid users. While stepping through the code with [pwndbg](https://github.com/pwndbg/pwndbg) I sort of follewed along with what it was expecting. So I connected to the remote server and did a `LIST`
+When I first fired up the binary and started playing with it, I didn't have the directory structure in place for it to read out any valid users. While stepping through the code with [pwndbg](https://github.com/pwndbg/pwndbg) I sort of followed along with what it was expecting. So I connected to the remote server and did a `LIST`
 ```bash
 $ ./challenge 
 LIST
@@ -104,7 +106,10 @@ LIST
 ```
 But having used PIE in Binary Ninja before, I knew I that it sometimes needs a little help finding functions. So address 0xd42-0xe10 probably has a function (or two) in there somewhere. (Binary Ninja is working on improving this). So we can click on an address and press `p` and tell it there is a function there. And Ctrl-Z works fine, so if the defined function doesn't make sense you can just 'undo' that change. 
 
-OK, so here is where I spent a bunch of time looking and understanding the code, renaming functions etc... The process is not fun to describe, so lets just dive into what I found. This was not just static analysis, it was hours of running the binary and cross referencing etc... [After renaming and defining things](https://github.com/Caesurus/CTF_Writeups/blob/master/2017-GoogleCTF_Quals/images/wiki-binja3.png)
+OK, so here is where I spent a bunch of time looking and understanding the code, renaming functions etc... The process is not fun to describe, so lets just dive into what I found. This was not just static analysis, it was hours of running the binary and cross referencing etc... 
+
+After renaming and defining things, it looks better:
+![alt text][Binja3]
 
 What I found (function names are mine):
 * Function `wrapped_read()`.
@@ -115,11 +120,11 @@ What I found (function names are mine):
 
    This compares two strings, it will keep looping till a NULL character is encountered, or the first difference is found. I thought it was curious that someone would implement this themselves when they could have called `strcmp()`. Turn out there was a good reason for this. Returns 1 if strings match, return 0 if they don't.
    
-* Command: `LIST`. 
+* Function `process_LIST()` called when entering command: `LIST`. 
 
    This reads the contents of `db` directory and prints each file in the directory (except for `.`) This is also the only location where something is output to STDOUT. If there is a possible leak, this had to be it.
 
-* Command: `USER`. 
+* Function `process_USER()` called when entering command: `USER`. 
 
    This takes user input (0x80 bytes) and checks if `/` is present in the string. 
    If it is, `exit()` is called.
@@ -130,11 +135,18 @@ What I found (function names are mine):
    This function will open the users file in the `db` directory, read the contents (spoiler: it's the password), and return the `strdup()`. In very basic terms, the function will read the password onto the stack, then call `strdup()` which will allocate memory on the heap, copy the string into it, and return a pointer to the string on the heap.
    We really can't control the input into `strdup`, so I didn't look too closely at whether this was vulnerable.
    
-* Command: `PASS`. 
+* Function `process_PASS()` called when entering command: `PASS`. 
 
-   This function `process_PASS()` has a stack size of `0x88` but will accept user input and accept `0x1000` bytes of input. So this is an obvious buffer overflow. OK that's the vulnerability. This also only accepts the user input if the length is a multiple of 8, if it's not, then `exit()`... mmm
+   This function `process_PASS()` has a stack size of `0x88` but will accept `0x1000` bytes of user input. So this is an obvious buffer overflow. OK that's the vulnerability. This also only accepts the user input if the length is a multiple of 8:
+   ```
+   0x0000555555554c87:	test   al,0x7
+   0x0000555555554c89:	jne    0x555555554ca8
+   ```
+   If it's not, then `exit()`...
    
-   If the password is correct it will call `system("cat flag.txt")`, otherwise just return.
+   If the password is correct it will call `system("cat flag.txt")`.
+   
+   Otherwise just return.
 
 ![alt text][Binja4]
 See the `sub rsp,0x88`, but then `0x1000` is passed to `wrapped_read()`
@@ -145,7 +157,7 @@ Oh yeah, lets overflow the password input and control where we return to. Easy r
 
 But wait, you know what... I'll be smart and when overwriting the return pointer on the stack, I'll just overwrite the last byte, or last two bytes. Since it's little endian, I can just update those bytes, the rest will already be valid bytes for the memory location. So I just need to update the last couple bytes to return to the `system("cat flag.txt")` code. 
 
-I was soo happy, "take that" I exclaimed!... And then I tried it and it called `exit()`.. Duh, the password has to be a multiple of 8. *sigh* So that's not going to work! That's why there was that limitation!!!
+I was soo happy, "take that" I exclaimed!... And then I tried it and it called `exit()`.. Duh, the password has to be a multiple of 8. *sigh* So that's not going to work! That's why that limitation was in there!!! 
 
 ### Step 4, Smash head against hard objects... 
 OK, back to looking for other options (not necessarily in this order). 
@@ -179,8 +191,25 @@ The missing piece was that I didn't realize that my call to the `vsyscall` worke
    0xffffffffff600007:	syscall 
    0xffffffffff600009:	ret  
 ```
-Syscall 0x60 is executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough.
+Syscall 0x60 is executed, and then it does a return. But my debugger didn't break on the return and just took the next item off the stack to return to and went off into the weeds. I didn't piece that together and didn't persue it hard enough. Trying to set a breakpoint at the return didn't help either.
+```
+Cannot insert breakpoint 4.
+Cannot access memory at address 0xffffffffff600009
+```
 
+* Now the final solution requires returning to a position in the code where the return address is `init()` offset: `0xe10`. 
+
+* When this is called, code will continue executing and eventually do a `read()`. 
+
+* If this is passed 8 NULLs, this is then compared to the users "password" which at this point is pointing to a NULL. 
+
+* Two NULLs are compared and the string comparision function returns a success, and the flag will be printed out `system("cat flag.txt")`.
+
+Although I'm slightly disappointed that I didn't solve this, I did learn a lot and enjoyed the process. Thanks GoogleCTF2017 Quals for a set of fun challenges :)
+
+### Lessons Learnt
+* I need to really investigate 'weird' crashes and really understand them. It was a rookie mistake, no excuses! 
+* Keep practicing
 
 
 [Binja1]: https://github.com/Caesurus/CTF_Writeups/blob/master/2017-GoogleCTF_Quals/images/wiki-binja1.png "Binary Ninja looking at main." 
