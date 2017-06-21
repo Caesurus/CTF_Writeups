@@ -24,13 +24,13 @@ Dump of assembler code from 0xffffffffff600000 to 0xffffffffff60000a:
 ```
 It turns out that what I did not realize was that the call to `0xffffffffff600000` was working just fine, but gdb was not breaking upon return, execution would work fine and it was just taking the next item off the stack to return to.
 
-* *facepalm* *.
+   *facepalm* 
 
 The final solution involves finding a good location to return to that is already on the stack. So you don't actually have Remote Code Execution (RCE) to solve this.
 
 Final exploit code [here](./exploit.py)
 
-
+---
 ## The full journey 
 
 I'm going to try to explain the ride this challenge took me on.
@@ -83,7 +83,7 @@ Start              End                Perm      Name
 
 When I first fired up the binary and started playing with it, I didn't have the directory structure in place for it to read out any valid users. While stepping through the code with [pwndbg](https://github.com/pwndbg/pwndbg) I sort of followed along with what it was expecting. So I connected to the remote server and did a `LIST`
 ```bash
-$ ./challenge 
+$ nc wiki.ctfcompetition.com 1337
 LIST
 xmlset_roodkcableoj28840ybtide
 Fortimanager_Access
