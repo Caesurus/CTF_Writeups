@@ -234,7 +234,7 @@ It has a context_save function that will save the current state of the registers
 Then when you want to go back to that location, just do:
 `u.context_restore(bruteforce_contxt)`
 
-Great! But for 3 characters, we still have a lot of permutations given a potential character set of lowercase, uppercase, numbers etc... 26+26+10 = 62characters, 62*62*62 = 238328 options. And that's without spaces, and special characters!
+Great! But for 3 characters, we still have a lot of permutations given a potential character set of lowercase, uppercase, numbers etc... 26 + 26 + 10 = 62 characters, 62 * 62 * 62 = 238328 options. And that's without spaces, and special characters!
 It would still take a LONG time to work through that. My desire was to brute force a single character at a time. But how to achieve that?
 
 `usercorn` can count instructions. All I needed was to be able to count the number of instructions between the start of the function and the end of the function with a given input. I could build a table of results, character -> instruction count. Then determine the outliers, and pick the right character.
@@ -269,7 +269,7 @@ This function required a bit of a tighter loop to correctly check inputs. There 
 This function takes each of the input bytes given and xors over several iterations and finally checks an expected value. This means I couldn't do one character at a time. I finally decided that I had enough of trying to figure it out and that I would just test every permutation of the characters. This ended up taking a while, but worked well.
 
 
-The implementation of these are in the (final script)[link].
+The implementation of these are in the [Final script](100-generic_brute.lua)
 
 ---
 ### Next Problem: Usercorn doesn't support syscall 'rename'
@@ -279,7 +279,7 @@ The implementation of these are in the (final script)[link].
 Kernel not found for syscall 'rename'
 ```
 
-Since `usercorn` uses unicorn to emulate the cpu, and doesn't rely on your kernel to handle syscalls, it implements them itself. The majority of the frequently used syscalls are supported, but not all of them. This usually isn't a problem. There is a `-stubsys` parameter that you can invoke to stub them out.
+Since usercorn doesn’t rely on your kernel to handle syscalls it implements them itself. The majority of the frequently used syscalls are supported, but not all of them. This usually isn't a problem. There is a `-stubsys` parameter that you can invoke to stub them out. Additionally you can also use `-native` if your host/guest arch/ABI matches.
 
 With this parameter invoked, we get further in our script, but end up with the following error after successfully decoding the first 2 passwords:
 ```C
