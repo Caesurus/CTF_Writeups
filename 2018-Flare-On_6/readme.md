@@ -345,7 +345,7 @@ end
 g_hooks = {}
 -- save context so we can restore it
 hh = u.hook_add(cpu.HOOK_CODE, cb_inst_start_addr, addr, addr)
-table.insert(hooks, hh)
+table.insert(g_hooks, hh)
 ```
 This way I could programmatically create a hook, and dispose of them later:
 ```lua
