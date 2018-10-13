@@ -1,0 +1,9 @@
+on code 0x474319 do
+  rax = 0
+  rip = 0x474346
+end
+
+on sys_pre 'nanosleep' do
+  print 'Trying to sleep... NO WAY! Wake up sleepyhead!'
+  return true
+end

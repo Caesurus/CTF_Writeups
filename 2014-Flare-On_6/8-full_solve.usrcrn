@@ -1,0 +1,120 @@
+-- Skip over the ptrace
+on code 0x474319 do
+  rax = 0
+  rip = 0x474346
+end
+
+-- Don't let the syscall to nanosleep actually be called
+on sys_pre 'nanosleep' do
+  print 'Trying to sleep... NO WAY! Wake up sleepyhead!'
+  return true
+end
+
+
+func find_chunk_end_addr(arr)
+  for idx,inst in pairs(arr) do
+    if 'je' == inst['name'] then
+      -- found last instruction in the chunk
+      -- print "FOUND %d" %{idx}
+      return idx-1
+    end
+  end
+end
+
+-- Implement a ror instruction
+func ror_byte(value, shift_by)
+  top_mask = (0xff >> (8 - shift_by))
+  tmp = value >> shift_by
+  tmp2 = (value & top_mask)
+  ret_data = tmp | (tmp2 << (8 - shift_by))
+  return ret_data
+end
+
+-- Implement a rol instruction
+func rol_byte(value, shift_by)
+    top = (value >> (8 - shift_by))
+    tmp = (value << shift_by) & 0xff
+    ret_data = tmp | top
+    return ret_data
+end
+
+
+func analyze_and_invert_next_chunk(start_addr)
+  arr = u.dis(start_addr, 0x120)
+  last_idx = find_chunk_end_addr(arr)
+  calc_byte = 0
+
+  -- Implement local interpreter for the asm
+  -- Work backwards
+  for i = last_idx, 1, -1 do
+    data_byte = arr[i]['ops'][2]
+
+    --print arr[i]
+    if 'cmp' == arr[i]['name'] then
+      calc_byte = data_byte
+    elif 'ror' == arr[i]['name'] then
+      shift_by = data_byte % 8
+      calc_byte = rol_byte(calc_byte, shift_by)
+    elif 'rol' == arr[i]['name'] then
+      shift_by = data_byte % 8
+      calc_byte = ror_byte(calc_byte, shift_by)
+    elif 'xor' == arr[i]['name'] then
+      calc_byte = calc_byte ^ data_byte
+    elif 'sub' == arr[i]['name'] then
+      calc_byte = (calc_byte + data_byte) & 0xff
+    elif 'add' == arr[i]['name'] then
+      if calc_byte < data_byte then
+        calc_byte = calc_byte + 0x100
+      end
+      calc_byte = calc_byte-data_byte
+    end
+
+  end
+  return chr(calc_byte)
+end
+
+flag = ''
+on code 0x44bb2b do
+  -- rdx is the mem location holding decipher asm. This could differ
+  -- depending on the length of our argv[2]
+  -- step through and find the first syscall, our decipher starts after that.
+  arr = u.dis(rdx, 0x300)
+  for idx,inst in pairs(arr) do
+    if 'syscall' == inst['name'] then
+      found_char = analyze_and_invert_next_chunk( arr[idx+1]['addr'] )
+      -- Add the character we found to the flag string
+      flag = flag .. found_char
+      break
+    end
+  end
+
+  -- do the rest
+  last_addr = rdx
+  while(true) do
+    --get the next couple of instruction
+    arr = u.dis(last_addr, 0x50)
+    for idx,inst in pairs(arr) do
+      -- every decode block starts with incrementing rax
+      if 'rax, 1' == inst['op_str'] and 'add' == inst['name'] then
+
+        -- figure out when we've reached the end
+        if 'rax, rax' == arr[idx+1]['op_str'] then
+          return
+        end
+
+        last_addr = arr[idx+1]['addr']
+        found_char = analyze_and_invert_next_chunk(last_addr)
+
+        -- Add the character we found to the flag string
+        flag = flag .. found_char
+        break
+      end
+    end
+
+  end
+
+end
+
+on sys 'exit' do
+  print 'FLAG: %s' %{flag}
+end

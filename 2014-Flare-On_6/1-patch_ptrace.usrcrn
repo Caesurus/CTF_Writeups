@@ -1,0 +1,7 @@
+on code 0x474319 do
+  rax = 0
+  rip = 0x474346
+end
+--patch 0x474319 'nop'
+--patch 0x474320 'nop'
+--patch 0x474321 'jmp 0x474346'
