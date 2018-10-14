@@ -14,7 +14,7 @@ After doing a couple of the entry level `Binary Exploitation` and `Crypto` chall
 
 ## Initial Attempt - The hard way
 My first attempt at solving this was to cycle through each gate and trying to determine the known quantities:
-For example, working backwards we know the very last gates value (0). So if the gate before it is an OR gate we can assume
+For example, working backwards we know the very last gates value. So if the gate before it is an OR gate we can assume
 ```
 1 | 1 = 1
 1 | 0 = 1
