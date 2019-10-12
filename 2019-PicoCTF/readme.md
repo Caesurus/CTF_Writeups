@@ -22,8 +22,13 @@ While there are many many challenges, and the majority of them are geared toward
 
 I'd like to cover a couple of those, hopefully adding as I find time
 
-- [times_up_one_last_time - 500 pts](./RE-times_up_one_last_time)
+- [sice_cream - 500 pts](./PWN-sice_cream/readme.md)
+- [ghost_diary - 500 pts](./PWN-ghost_diary/readme.md)
+- [times_up_one_last_time - 500 pts](./RE-times_up_one_last_time/readme.md)
 
-.... Update... apparently I'm a bit overzealous in posting write-ups and need to wait for winners to be annouced before releasing these specific write-ups.
 
-Opps.. sorry :(
+Other writeups:
+[https://github.com/farazsth98/picoctf-2019-pwn-challenges](https://github.com/farazsth98/picoctf-2019-pwn-challenges)
+[https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/](https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/)
+[https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/](https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/)
+
