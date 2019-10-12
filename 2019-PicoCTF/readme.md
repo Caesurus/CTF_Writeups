@@ -28,7 +28,7 @@ I'd like to cover a couple of those, hopefully adding as I find time
 
 
 Other writeups:
-[https://github.com/farazsth98/picoctf-2019-pwn-challenges](https://github.com/farazsth98/picoctf-2019-pwn-challenges)
-[https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/](https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/)
-[https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/](https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/)
+- [https://github.com/farazsth98/picoctf-2019-pwn-challenges](https://github.com/farazsth98/picoctf-2019-pwn-challenges)
+- [https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/](https://syedfarazabrar.com/2019-10-12-picoctf-2019-heap-challs/)
+- [https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/](https://tcode2k16.github.io/blog/posts/picoctf-2019-writeup/binary-exploitation/)
 
