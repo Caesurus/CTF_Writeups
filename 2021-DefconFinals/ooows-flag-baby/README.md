@@ -2,15 +2,16 @@
 
 This was the first challenge in a series of virtualization challenges. 
 As the name implies, the challenge was meant to be a simple starter/warmup challenge. 
-On the first day I started looking at the challenge and found that I was pretty much out of my comfort zone and a bit clueless.
+On the first day I started looking at the challenge and found that I was pretty much out of my comfort zone and more than a bit clueless.
 
 Luckily there were others on the team that knew what was going on. 
-However, I felt pretty inadequate for not being able to solve this, so I made it a personal goal to solve this one later once the competition was over.
+However, I felt pretty inadequate for not being able to solve this, so I made it a personal goal to solve this later, once the competition was over.
 
 ## TLDR:
- - Challenge is to interface with I/O ports and retrieve flag  
-- Create MBR with custom code that
-  - interfaces with I/O port connected to `noflag.sh`
+ - ooows presumably stands for `Order Of the Overflow Web Services`
+ - Challenge is to interface with I/O ports and retrieve flag
+ - Create MBR with custom code that
+  - interfaces with I/O port connected to `noflag` which in turn starts `noflag.sh`
   - sends data to program FILENAME (beware of the filter)
   - send magic to trigger file open
   - read back flag contents
@@ -18,7 +19,6 @@ However, I felt pretty inadequate for not being able to solve this, so I made it
 - View flag via web interface serial port
 
 ## High Level Overview:
-
 Here is a high level overview of what is running in the container, and what the various binaries/scripts do. 
 ```
 ┌─────────────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
@@ -66,10 +66,143 @@ The web interface is nice and simple.
 The `Upload a virtual disk` button allows us to upload a disk image. 
 Once uploaded, a VM shows up that can be started and the boot process can be observed via either the `Video` button
 
-![VM Video](./images/web_video_buffer.png).
+![VM Video](./images/web_video_buffer.png)
 
 By default, nothing shows up on the serial console. This is because the `bios` outputs to `vga` and doesn't do anything with the serial interface.
 
-So now where do we start?
+It seemed pretty obvious that the `noflag.sh` script was what needed to be triggered. 
+Regardless of that, we still spent time looking for obvious vulnerabilities in the web app code. There didn't seem to be anything obvious so now what?
+
+Where do we start?
+
+### Disassemble the bios
+Since the VM starts execution with the `bios` let's inspect that and see if we can figure out what's going on there.
+
+After opening up the file with binja, we see something strange in the `Feature map`:
+![bios ascii art](./images/bios_art.png)
+
+Whip up a quick script to convert the bytes to something printable, assume 0x00 is supposed to be a space (`0x20`)
+```
+with open('./bios', 'rb') as f:
+    data = f.read()[0x200:0x1500]
+
+    for j in range(64, 300, 32):
+        print('-' * 80, j, '-' * 80)
+
+        cnt = 0
+        for i in data:
+            if not cnt % j:
+                print('')
+            sys.stdout.write(chr(i+ord(' ')))
+
+            cnt += 1
+```
+And we get something like this (if we do a newline ever 64 bytes):
+```
+                                  000                           
+                                  0%%000                        
+                                 0%%%%%%0                       
+                                 0%%%%%%%0                      
+                                0%%%%%%%%%00                    
+                                0%%%%%%%%%%%0                   
+                                0%%%%%%%%%%%0                   
+                               0%%%%%%%%%%%%%0                  
+                               0%%%%%%%%%%%%%0                  
+                               0%%%%%%%%%%%%%%0                 
+            000          00   0%%%%%%%%%%%%%%%0                 
+          00,,,0         0!0000%%%%%%%%%%%%%%%%0                
+         0,,,,,,0       0))))!000%%%%%%%%%%%%%%0                
+        0,,,,,,,,0  0000!))))))$$000%%%%%%%%%%%%0               
+       0,,,,,,,,,0 0$$$0!)))))%,,,$$00%%%%%%%%%%0               
+      0,,,,,,,,,,,00$$$0))))))%,,,,%)!000%%%%%%%0               
+     0,,,,,,,,,,,,0$$$0!)))))),,,,,!)))!0000%%%%%0              
+    0,,,,,,,,,,,,$0$$$0!)))))%,,,,,)))))0...000%%0              
+   0,,,.,..,..,,,$0$$$0))))))$,,,,%))))0.....0!000              
+  0,,.........,,,0$$$0!)))))!,,,,,!))))0....0)))!00             
+  0,,............0$$$0))))))%,,,,$)))))0....0)))))!0            
+   0,............0$$$0))))))$,,,,%))))0.....0))))))!00          
+   0,,..........0$$$0!)))))!,,,,,)))))0....0)))))))))0          
+   0,,,.........0$$$0))))))%,,,,$))))0.....0))))))))))00        
+   0,,,........0$$$0!)))))),,,,,%))))0.....0)))))))))))!0       
+   0,,,,,......0$$$0!)))))%,,,,,)))))0....0)))))))))))))!0      
+   0,,,,,,.,,..0$$$0))))))$,,,,%))))0.....0)))))))))))))))0     
+   0,,,,,,,,,,0$$$0!)))))),,,,,!))))0....0))))))))))))))))0     
+   0,,,,,,,,,$0$$$0!)))))%,,,,$)))))0....0))))))))))))))))!     
+   0,,,,,,,,,$0$$$0))))))$,,,,%))))0.....0)))))))))))))))))0    
+    0,,,,,,,,0$$$0!)))))!,,,,,!))))0....0)))))))))))))))))))0   
+    0,,,,,,,,0$$$0))))))%,,,,$))))0.....0)))))))))))))))))))0   
+     0,,,,0000$$0!)))))),,,,,%))))0.....0))))))))))))))))))))0  
+      0000  0$$$0!)))))!,,,,,)))))0....0)))))))))))))))))))))0  
+            0$$$0))))))%,,,,%))))0.....0))))))))))))))))))))))0 
+            00$0!)))))),,,,,!))))0.....0)))))))))))))))))))))!0 
+              00!)))))%,,,,,)))))0....0)))))))))))))))))))))))0 
+               0))))))$,,,,%))))0.....0)))))))))))))))))))))))0 
+               0)))))!,,,,,!))))0.....0))))))0000)))))))))))))0 
+              0!)))))%,,,,$)))))0....0)))))!0    00!))))))))))0 
+              0))))))$,,,,%))))0.....0)))))0       0))))))))))0 
+              00!)))!,,,,,!))))0....0))))))0        0)))))))))0 
+                00!!%,,,,$))))0.....0)))))!0        0!))))))))0 
+                  000$,,,%))))0.....0))))))0        0)))))))!0  
+                  0%%00$$)))))0....0)))))))0        0)))))))0   
+                 0%%%%%000!!)0.....0))))))))00     0!)))))!!0   
+                 0%%%%%%%%0000.....0))))))))))000 0))))))!!0    
+                 0%%%%%%%%%%%000..0)))))))))))))!0))))))00      
+                0%%%%%%%%%%%%%%%000!))))))))))))))))))00        
+                0%%%%%%%%%%%%%%%%%000!!)))))))))))0000          
+                0%%%%%%%%%%%%%%%%%%%00000000000000              
+               0%%%%%%%%%%%%%%%%%%%%0                           
+               0%%%%%%%%%%%%%%%%%%%0                            
+              0%%%%%%%%%%%%%%%%%%0                              
+              0%%%%%%%%%%%%%%%%00                               
+              000%%%%%%%%%%%%00                                 
+                 00%%%%%%%000                                   
+                   0000000                                      
+```
+Printing a newline ever 128 bytes:
+```    
+                                   000                                                             0%%000                       
+                                  0%%%%%%0                                                        0%%%%%%%0                     
+                                 0%%%%%%%%%00                                                    0%%%%%%%%%%%0                  
+                                 0%%%%%%%%%%%0                                                  0%%%%%%%%%%%%%0                 
+                                0%%%%%%%%%%%%%0                                                 0%%%%%%%%%%%%%%0                
+             000          00   0%%%%%%%%%%%%%%%0                           00,,,0         0!0000%%%%%%%%%%%%%%%%0               
+          0,,,,,,0       0))))!000%%%%%%%%%%%%%%0                        0,,,,,,,,0  0000!))))))$$000%%%%%%%%%%%%0              
+        0,,,,,,,,,0 0$$$0!)))))%,,,$$00%%%%%%%%%%0                     0,,,,,,,,,,,00$$$0))))))%,,,,%)!000%%%%%%%0              
+      0,,,,,,,,,,,,0$$$0!)))))),,,,,!)))!0000%%%%%0                  0,,,,,,,,,,,,$0$$$0!)))))%,,,,,)))))0...000%%0             
+    0,,,.,..,..,,,$0$$$0))))))$,,,,%))))0.....0!000                0,,.........,,,0$$$0!)))))!,,,,,!))))0....0)))!00            
+   0,,............0$$$0))))))%,,,,$)))))0....0)))))!0               0,............0$$$0))))))$,,,,%))))0.....0))))))!00         
+    0,,..........0$$$0!)))))!,,,,,)))))0....0)))))))))0             0,,,.........0$$$0))))))%,,,,$))))0.....0))))))))))00       
+    0,,,........0$$$0!)))))),,,,,%))))0.....0)))))))))))!0          0,,,,,......0$$$0!)))))%,,,,,)))))0....0)))))))))))))!0     
+    0,,,,,,.,,..0$$$0))))))$,,,,%))))0.....0)))))))))))))))0        0,,,,,,,,,,0$$$0!)))))),,,,,!))))0....0))))))))))))))))0    
+    0,,,,,,,,,$0$$$0!)))))%,,,,$)))))0....0))))))))))))))))!0       0,,,,,,,,,$0$$$0))))))$,,,,%))))0.....0))))))))))))))))))0  
+     0,,,,,,,,0$$$0!)))))!,,,,,!))))0....0)))))))))))))))))))0       0,,,,,,,,0$$$0))))))%,,,,$))))0.....0))))))))))))))))))))0 
+      0,,,,0000$$0!)))))),,,,,%))))0.....0))))))))))))))))))))0        0000  0$$$0!)))))!,,,,,)))))0....0))))))))))))))))))))))0
+             0$$$0))))))%,,,,%))))0.....0)))))))))))))))))))))!0             00$0!)))))),,,,,!))))0.....0))))))))))))))))))))))0
+               00!)))))%,,,,,)))))0....0)))))))))))))))))))))))0                0))))))$,,,,%))))0.....0)))))))))))))))))))))))0
+                0)))))!,,,,,!))))0.....0))))))0000)))))))))))))0               0!)))))%,,,,$)))))0....0)))))!0    00!))))))))))0
+               0))))))$,,,,%))))0.....0)))))0       0))))))))))0               00!)))!,,,,,!))))0....0))))))0        0)))))))))0
+                 00!!%,,,,$))))0.....0)))))!0        0!))))))!0                    000$,,,%))))0.....0))))))0        0)))))))0  
+                   0%%00$$)))))0....0)))))))0        0))))))!0                    0%%%%%000!!)0.....0))))))))00     0!)))))!0   
+                  0%%%%%%%%0000.....0))))))))))000 0))))))!!                      0%%%%%%%%%%%000..0)))))))))))))!0))))))00     
+                 0%%%%%%%%%%%%%%%000!))))))))))))))))))00                        0%%%%%%%%%%%%%%%%%000!!)))))))))))0000         
+                 0%%%%%%%%%%%%%%%%%%%00000000000000                             0%%%%%%%%%%%%%%%%%%%%0                          
+                0%%%%%%%%%%%%%%%%%%%0                                          0%%%%%%%%%%%%%%%%%%0                             
+               0%%%%%%%%%%%%%%%%00                                             000%%%%%%%%%%%%00                            
+                  00%%%%%%%000                                                      0000000                                 
+```
+Anyway... doesn't look relevant to the challenge, but fun..
+
+Let's look at the disassembly
+![bios](./images/bios_disasm.png)
+On the right we see the loop that presumably outputs the `OOOWS BIOS VERSION 0.1 (c) Proprietary works of OOOCorp` to the screen.
+
+Then we see it checking for the magic `0x55` and `0xaa` at the end of the MBR, and finally if those are where they are supposed to be, it will jump to `0x7c00` which is the start of the MBR.
 
 ### Learn about the MBR
+If the VM boots, and we can upload a disk, then we can have code execution on the box. But what does that actually look like, I definitely hadn't created a MBR from scratch before. So time to do some searching!
+
+I found this article: [custom master boot record](http://osteras.info/personal/2013/08/15/custom-master-boot-record.html)
+It's a great, straight forward, concise article that contained just enough information for me to move on to the next step of the process.
+
+### Interface with I/O ports
+...
