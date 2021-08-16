@@ -59,4 +59,17 @@ Here is a high level overview of what is running in the container, and what the 
 └────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+The web interface is nice and simple.
 
+![WebInterface](./images/web_interface.png) 
+
+The `Upload a virtual disk` button allows us to upload a disk image. 
+Once uploaded, a VM shows up that can be started and the boot process can be observed via either the `Video` button
+
+![VM Video](./images/web_video_buffer.png).
+
+By default, nothing shows up on the serial console. This is because the `bios` outputs to `vga` and doesn't do anything with the serial interface.
+
+So now where do we start?
+
+### Learn about the MBR
