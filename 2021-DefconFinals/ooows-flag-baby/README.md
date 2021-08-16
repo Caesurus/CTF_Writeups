@@ -64,7 +64,7 @@ The web interface is nice and simple.
 ![WebInterface](./images/web_interface.png) 
 
 The `Upload a virtual disk` button allows us to upload a disk image. 
-Once uploaded, a VM shows up that can be started and the boot process can be observed via either the `Video` button
+Once uploaded, a VM shows up that can be started, and the boot process can be observed via the `Video` button
 
 ![VM Video](./images/web_video_buffer.png)
 
@@ -73,7 +73,7 @@ By default, nothing shows up on the serial console. This is because the `bios` o
 It seemed pretty obvious that the `noflag.sh` script was what needed to be triggered. 
 Regardless of that, we still spent time looking for obvious vulnerabilities in the web app code. There didn't seem to be anything obvious so now what?
 
-Where do we start?
+Where do I start with all this?
 
 ### Disassemble the bios
 Since the VM starts execution with the `bios` let's inspect that and see if we can figure out what's going on there.
@@ -97,7 +97,7 @@ with open('./bios', 'rb') as f:
 
             cnt += 1
 ```
-And we get something like this (if we do a newline ever 64 bytes):
+And we get something like this (if we do a newline every 64 bytes):
 ```
                                   000                           
                                   0%%000                        
@@ -158,7 +158,7 @@ And we get something like this (if we do a newline ever 64 bytes):
                  00%%%%%%%000                                   
                    0000000                                      
 ```
-Printing a newline ever 128 bytes:
+Printing a newline every 128 bytes:
 ```    
                                    000                                                             0%%000                       
                                   0%%%%%%0                                                        0%%%%%%%0                     
