@@ -234,10 +234,9 @@ br *0x7c00
 ![gdb attached](./images/gdb_attached.png)
 
 
-
 ### Interface with I/O ports
 Following the articles directions, I was able to make a very simple MBR, and in a regular VM that prints output to the screen. 
-The VM we're running this in isn't a regular VM, and we can't rely on outputs to work the same way. So let's see what we have to interface with by looking at `devices.conf`:  
+However, the VM we're running this in isn't a regular VM, and we can't rely on outputs to work the same way. So let's see what we have to interface with by looking at `devices.conf`:  
 ```
 ooowsdisk.py 0x90 0x10 0 0
 ooowsserial.py 0x3f8 1 0 0
@@ -298,9 +297,9 @@ class OoowsSerialController():
 
 ### Interfacing with `noflag` I/O
 
-Now that we understand how to output bytes to the serial console, lets output to the `noflag` device at `0xf146`.
+Now that we understand how to output bytes to the serial console, let's output to the `noflag` device at `0xf146`.
 It would be great to be able to debug this somehow, and I didn't figure out how to attach `gdb` to the VM running in the container.
-Luckily the `noflag.sh` script already has handy debug variable that's set to `false`. So I set that to true, and rebuilt the VM:
+Luckily the `noflag.sh` script already has handy debug variable that's set to `false`. So I set that to true, and rebuilt the container:
 `DEBUG=true`
 
 
@@ -358,7 +357,7 @@ Received PIO_EXTRA=0x000000000000000000000000
 Got input request for size 2
 /app/devices-bin/noflag.sh: line 32: $2: Bad file descriptor
 ```
-So that obviously didn't work! Lets revisit the script:
+So that obviously didn't work! Let's revisit the script:
 ```bash
     if [ "${FILTER_STRING:$FILTER_OFFSET:1}" == "$BYTE" ]
     then
@@ -378,7 +377,7 @@ FILTER_OFFSET=0
 ```
 So anything that ends in `flag` is going to trigger a reset of the `FILENAME` variable...
 
-Well, it is a bash script, so lets try it with a wildcard... So let's just send `/fla*`:
+Well, it is a bash script, so what if we try it with a wildcard... So just send: `/fla*`:
 ```bash
 Added BYTE=* to FILENAME=/fla*
 Received RQ_TYPE=0x00000000
@@ -393,7 +392,7 @@ Received PIO_EXTRA=0x000000000000000000000000
 Opening the file!
 Received RQ_TYPE=0x00000000
 ```
-Hahaha, well that was easy! Now we have the file open, we'll need to read from it and output it to the serial console in order to see the flag.
+Hahaha, well that was easier than I thought! Now we have the file open, we'll need to read from it and output it to the serial console in order to see the flag.
 
 Here is the annotated final code:
 ```bash
