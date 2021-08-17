@@ -194,15 +194,93 @@ Anyway... doesn't look relevant to the challenge, but fun..
 
 Let's look at the disassembly
 ![bios](./images/bios_disasm.png)
+
+Remember that we're dealing with 16bit here, so make sure to disassemble accordingly.
 On the right we see the loop that presumably outputs the `OOOWS BIOS VERSION 0.1 (c) Proprietary works of OOOCorp` to the screen.
 
-Then we see it checking for the magic `0x55` and `0xaa` at the end of the MBR, and finally if those are where they are supposed to be, it will jump to `0x7c00` which is the start of the MBR.
+Then on the left we see it checking for the magic `0x55` and `0xaa` at the end of the MBR, and finally if those are where they are supposed to be, it will jump to `0x7c00` which is the start of the MBR.
+You can't see it in the screenshot, but if the checks fail it outputs `Boot device not found`  
 
 ### Learn about the MBR
-If the VM boots, and we can upload a disk, then we can have code execution on the box. But what does that actually look like, I definitely hadn't created a MBR from scratch before. So time to do some searching!
+If the VM boots, and is running our uploaded disk, then we can have code execution on the box. What does that actually look like? I definitely hadn't created a MBR from scratch before. So time to do some searching!
 
 I found this article: [custom master boot record](http://osteras.info/personal/2013/08/15/custom-master-boot-record.html)
 It's a great, straight forward, concise article that contained just enough information for me to move on to the next step of the process.
 
+One thing the article doesn't cover is debugging a bootloader. 
+
+I did this with starting a VM with:
+
+```qemu-system-i386 -hda bootdisk -s -S```
+
+And then running:
+
+`gdb-multiarch -ex 'source gdbcmds'`
+
+where `gdbcmds` is a file with the following contents:
+
+```
+set architecture i8086
+target remote localhost:1234
+br *0x7c00
+```
+
+**Side Note**:  I found [pwndbg](https://github.com/pwndbg/pwndbg) was able to still correctly display things nicely (other gdb enhanced UI did not):
+![gdb attached](./images/gdb_attached.png)
+
+
+
 ### Interface with I/O ports
-...
+Following the articles directions, I was able to make a very simple MBR, and in a regular VM that prints output to the screen. 
+The VM we're running this in isn't a regular VM, and we can't rely on outputs to work the same way. So let's see what we have to interface with by looking at `devices.conf`:  
+```
+ooowsdisk.py 0x90 0x10 0 0
+ooowsserial.py 0x3f8 1 0 0
+ooowsserial.py 0x2f8 1 0 0
+vga 0x3b0 1 0xa0000 0x20000
+noflag 0xf146 2 0 0
+```
+After some poking around in the `vmm` binary, it looks like: 
+- 1st field is obviously the binary/script name that takes interface input/output. 
+- 2nd field is the I/O port address.
+- Guessing that the 3rd field is the length of the I/O access. EG `0x90-0xA0` is for disk access.
+- Guessing again that the 4th and 5th are other memory mapped I/O `0xa0000-0xc0000`
+
+#### First successful output
+```asm
+[bits 16]
+[org 0x7c00]
+
+mov edx, 0x3f8
+mov si, my_string
+call print_string
+hlt
+
+print_char:
+    out dx, ax
+    ret
+
+print_string:
+next_char:
+    mov al, [si]
+    inc si
+    or al, al
+    jz exit_function
+    call print_char
+    jmp next_char
+exit_function:
+    ret
+
+my_string db 'testing oooserial access', 0
+
+times 510 - ($ - $$) db 0
+dw 0xaa55
+```
+
+This took me quite a while to get right, I didn't know about the [in](https://www.felixcloutier.com/x86/in) / [out](https://www.felixcloutier.com/x86/out) instructions.
+I spent quite a bit of time first trying to get output to the `vga`, without any success. Through a series of trial and error I was able to finally output something:
+
+![serial ouput](./images/serial_output.png)
+
+
+
