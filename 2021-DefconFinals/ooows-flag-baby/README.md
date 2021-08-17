@@ -439,3 +439,4 @@ All in all, this was an interesting challenge, and I learned a lot of things by 
 This entry level problem did a great job of introducing new concepts and facilitating debug. It was a pleasure to solve, without the time constraint and without having to fend off attacks from other teams ;)
 
 I hope this write-up ends up helping someone else out in the future.  
+[Final Solution with sources](solve.tgz)
