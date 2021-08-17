@@ -319,7 +319,7 @@ The `noflag.sh` also has a special command to indicate that it should open the f
 If the direction is a write action, and the data written is `1337` then trigger the file open.
 
 This is the last portion of the debug produced:
-```bash
+```python
 Added BYTE=a to FILENAME=/fla
 Byte a (offset 2) matched!
 Received RQ_TYPE=0x00000000
