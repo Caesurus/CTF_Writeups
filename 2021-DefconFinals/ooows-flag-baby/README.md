@@ -433,7 +433,7 @@ dw 0xaa55
 **NOTE**, I changed the `Docker` file to save off a slightly more interesting flag to the file: 
 ![flag output](./images/print_flag.png)
 
-##Closing thoughts:
+## Closing thoughts:
 
 All in all, this was an interesting challenge, and I learned a lot of things by being exposed to things I usually don't deal with. 
 This entry level problem did a great job of introducing new concepts and facilitating debug. It was a pleasure to solve, without the time constraint and without having to fend off attacks from other teams ;)
