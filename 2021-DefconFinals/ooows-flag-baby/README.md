@@ -164,7 +164,7 @@ We get something like this (if we do a newline every 64 bytes):
                    0000000                                      
 ```
 **EDIT:** Someone pointed out that there is a `BM` header which is the start of a BMP image. 
-When you save that you get the following:  
+When you save that off to a separate file you get the following:  
 ![bios](./images/bios_image.bmp)
 
 Anyway... It's completely irrelevant to the challenge, but fun...
