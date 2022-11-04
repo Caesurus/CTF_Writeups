@@ -469,14 +469,14 @@ Well, that gets us an `import error`, but we know it's there somewhere on the fi
 ## Finding and using site-packages
 
 ```python
-os.system("find / -name boto3")
+    os.system("find / -name boto3")
 ```
 
 And once we have the site-packages we can just add that to our python path... There were two locations. The `/var/runtime` seemed to be the safer bet, so add that to the path in our script...
 
 ```python
-# sys.path.append("/var/lang/lib/python3.9/site-packages")
-sys.path.append("/var/runtime/")
+    # sys.path.append("/var/lang/lib/python3.9/site-packages")
+    sys.path.append("/var/runtime/")
 ```
 
 ---
@@ -488,13 +488,13 @@ Accessing s3 requires a bucket name, and the `app.py` code shows we also need to
 We are also still missing AWS environment variables with tokens and keys... Where did those disappear to? Forked processes will inherit env from the parent. Well a closer look at the `app.py` code shows what happened to those:
 
 ```python
-   stored_env_values = {}
-for key in os.environ:
-    if 'AWS' in key:
-        stored_env_values[key] = os.environ[key]
-
-for key in stored_env_values:
-    del os.environ[key]
+    stored_env_values = {}
+    for key in os.environ:
+        if 'AWS' in key:
+            stored_env_values[key] = os.environ[key]
+    
+    for key in stored_env_values:
+        del os.environ[key]
 ```
 
 So those are removed and then put back later... but let's see if we can figure out who is calling who, and if there are other processes running.
@@ -502,11 +502,11 @@ So those are removed and then put back later... but let's see if we can figure o
 Running `ps aux` would be too easy, the package isn't installed, so lets go digging through the `/proc` filesystem...
 
 ```python
-cmds = glob.glob('/proc/*/cmdline')
-for c in cmds:
-    with open(c, 'r') as f:
-        print(f'c:{c}')
-        print(f.read())
+    cmds = glob.glob('/proc/*/cmdline')
+    for c in cmds:
+        with open(c, 'r') as f:
+            print(f'c:{c}')
+            print(f.read())
 ```
 
 This shows that there are several layers of calls here...
