@@ -105,9 +105,11 @@ So when a command is provided that contains a number of sequential spaces, it wi
 
 So our first step is placing enough spaces in the command that goes to `entry_1` to reach into `entry_2` so that we can free the pointer to `entry_3` by using the `5) Remove argument` in the menu on `entry_2`. At that point it will be placed on in the tcache.
 
-This is where I struggled a bit because I didn't have a leak. What I played around with was creating a `tag` that was 0x28 bytes, the same size as the structure, freeing the entry2->tag pointer, and then allocing a new cmd. That would then allow me to leak that pointer. This still only have me a heap pointer though...
+This is where I struggled a bit because I didn't have a leak. What I played around with was creating a `tag` that was `0x28` bytes (the same size as the structure), freeing the `entry2->tag` pointer, and then allocing a new cmd. That would then allow me to leak that pointer. This still only gave me a heap pointer though...
 
-I was going to go down the path of allocing and freeing enough chunks to for a memory consolidation and forcing a chunk to be placed into the unsorted bin, thereby having a pointer to libc to leak. But I have a tendency to overthink things, and figured I was missing something.
+### Wrong path
+
+I was going to go down the path of allocing and freeing enough chunks to for a memory consolidation and forcing a chunk to be placed into the `unsorted bin`, thereby having a pointer to libc to leak. This would mean I'd have to try to pivot from there to leak the application base. But I have a tendency to overthink things, and figured I was missing something.
 
 So back to the source!
 
@@ -123,12 +125,12 @@ The next vuln I spotted was a format string bug...:
         puts(str: "\nArgument is too large!")
     break
 ```
-The code that prints out arguments via the `View command` will not print an argument that is larger than 4 characters. This was a problem initially trying to leak stuff, but I had missed that there was a FSB. So I create a command with several arguments like this: 
+The code that prints out arguments via the `View command` will not print an argument that is larger than 4 characters. This was a problem initially because i could only leak 4 bytes at a time, but I had missed that there was a `Format String Bug`. So I create a command with several arguments like this: 
 
 ```
 cmd %3$p %4$p %5$p %6$p %7$p %8$p %9$p %10$p 
 ```
-This allowed me to print off the stack and leak both heap and base address locations.
+This allowed me to print items/pointers off the stack and leak both heap and base address locations. I leaked the heap because I initially thought the solution would involve replacing the tcache pointer to arbitrary memory, and circumventing the ptmalloc security checks. But the solution ended up being much easier than that.
 
 ## Putting it all together
 
@@ -137,7 +139,7 @@ Using the leaked information about the base of the application, we can calculate
 0x4020 /usr/games/cowsay moooo
 ```
 
-So by freeing the pointer to the next pointer in `entry_2`, we can then attempt to run a command, when that fails, we can leave feedback. This conveniently alloc's 0x28 bytes (the same size as the struct that was freed), and we get the pointer to `entry_3`. We can then overwrite the pointer to `entry_3->tag`.
+So by freeing the pointer to the next pointer in `entry_2`, we can then attempt to run a command, when that fails, we can leave feedback. This conveniently alloc's `0x28` bytes (the same size as the struct that was freed), and we get the pointer to `entry_3`. We can then overwrite the pointer to `entry_3->tag`.
 
 After that is done, we can edit the tag of `entry_3` via the `3) Edit tag` option in the menu, and set the command to `/bin/sh`. 
 
