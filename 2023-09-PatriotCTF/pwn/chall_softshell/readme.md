@@ -103,7 +103,7 @@ So when a command is provided that contains a number of sequential spaces, it wi
  └───────────────────┘
 ```
 
-So our first step is placing enough spaces in the command that goes to entry_1 to reach into entry_2 so that we can free the pointer to entry_3. At that point it will be placed on in the tcache.
+So our first step is placing enough spaces in the command that goes to `entry_1` to reach into `entry_2` so that we can free the pointer to `entry_3` by using the `5) Remove argument` in the menu on `entry_2`. At that point it will be placed on in the tcache.
 
 This is where I struggled a bit because I didn't have a leak. What I played around with was creating a `tag` that was 0x28 bytes, the same size as the structure, freeing the entry2->tag pointer, and then allocing a new cmd. That would then allow me to leak that pointer. This still only have me a heap pointer though...
 
@@ -142,6 +142,8 @@ So by freeing the pointer to the next pointer in `entry_2`, we can then attempt 
 After that is done, we can edit the tag of `entry_3` via the `3) Edit tag` option in the menu, and set the command to `/bin/sh`. 
 
 Then all we have to do is add a command entry with `/bin/sh`, and then run it with `4) Run command`.
+
+[Full exploit](./exploit.py)
 
 ## Summary
 
