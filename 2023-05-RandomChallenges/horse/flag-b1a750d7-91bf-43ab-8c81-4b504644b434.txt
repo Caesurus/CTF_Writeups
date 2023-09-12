@@ -1,0 +1,1 @@
+picoCTF{n0_sh3ll_v3ry_flag_xdd}
