@@ -16,7 +16,7 @@ I'd like to outline my thought process and how I would approach this problem. Us
 
 The key is persistence, to be successful in Reverse Engineering, you need to have persistence. 
 
-> <h3> __NOTE__: How you think is more important than what you know.
+> <h3> NOTE: How you think is more important than what you know.
 
  Please also note that the `zImage` or `bzImage` you encounter may be different than what I outline here, it may have `initrd` baked in, it may have a different compression etc... The offsets of things will be different. This serves as a guide to "how to think about the problem" and you will have to adjust accordingly.
 
@@ -132,7 +132,10 @@ qemu-system-arm -M vexpress-a9 -kernel output/images/zImage -drive file=output/i
 stty intr ^c    # revert back to ctrl-c
 ```
 
-Now we have a booting system. We can get started!
+Now we have a booting system. We can get started! 
+Thats was a lot of effort, but it's worth it in order to be able to understand the problem at hand. We now have a fully emulated environment that we can debug via `gdb`. We have full sources to refer to and understand the assembly if we get stuck... Yes, that time was worth it.
+
+---
 
 ## Actually start on the problem
 
@@ -187,13 +190,13 @@ $ diff ex_org.hex ex_recom.hex
 > 0024dbf0: 4e0d 9784 4948 00                        N...IH.
 ```
 
-So we see that we have trailing data, but other than that, the contents is identical, so we're on the right track...
+We see that we have trailing data, but other than that, the contents is identical... we're on the right track... We know how it was originaly compressed, this is very important.
 
 #### What is this data?
 
 We should probably spend some time looking at what a `zImage` is and how it's build etc...
 
-[This article](https://www.ibiblio.org/oswg/oswg-nightly/oswg/en_US.ISO_8859-1/articles/alessandro-rubini/boot/boot/zimage.html) gives some nice details about what's going on. 
+[This article](https://www.ibiblio.org/oswg/oswg-nightly/oswg/en_US.ISO_8859-1/articles/alessandro-rubini/boot/boot/zimage.html) gives some really nice details about what's going on. 
 
 To summerize, we have executable code that uncompresses the kernel into memory and then hands execution control to it. This means that the trailing data is probably important. Lets inspect it with Binary Ninja or your favorite disassembler.
 
@@ -209,7 +212,7 @@ We can see `0x878` looks like it's a function, and if we look at function `sub_8
 
 ![](./Images/Functions.png)
 
-We can see this function matches the source here: [https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134-L154](https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134-L154)
+We can see this function matches the source here: [https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134-L154](https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134)
 
 We see that the calling convention for the function is:
 
@@ -230,7 +233,7 @@ We can say `data_252374` is a pointer to the start of our data, `data_25236c` is
 
 There are a couple of options at this point. The other pointers are necessary and are referenced in the code etc... We can try to fully understand and update each reference, but that sounds like a lot of work.
 
-> NOTE, I am a big fan of TDD(Test Drive Development). And the principles can be applied to Reverse Engineering as well. TDD has you create a Unit Test which fails, then create just enough Production code in order to make it pass. We can apply that here as well. 
+> <h3> NOTE, I am a big fan of TDD(Test Drive Development). And the principles can be applied to Reverse Engineering as well. TDD has you create a Unit Test which fails, then create just enough Production code in order to make it pass. We can apply that here as well. 
 
 Could we get away with a shortcut? Could we ensure that our updated `gz` image is the same size, or smaller than the original, pad it to be the same size, and just update the relevant pointers to point to the end of our `gz` image. 
 
@@ -241,8 +244,9 @@ This keeps our trailing data the same (for this image), and keeps things simple.
 This part took a bit of time. There was quite a bit of debugging with `gdb-multiarch` attached to `qemu-system`. The process of doing this is enough to fill a whole other post, so I'll spare you.
 
 What you should know is:
-1) Debugging `qemu` with `-s -S` is possible and you should totally learn to do this
-2) Dynamic analysis is something you should get comfortable with
+1) Debugging `qemu-system-<arch>` with `-s -S` is possible and you should totally learn to do this
+1) Dynamic analysis is something you should get comfortable with
+1) `gdb-multiarch` is a thing and you should use it
 
 In the end I got a working unpacker and packer for my specific `zImage`. I did the bare minimum to get it working on my file. Knowing full well that modifications will have to be made to support other versions.
 
