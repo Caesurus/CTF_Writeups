@@ -1,26 +1,30 @@
 # Unpacking, Patching, and Repacking a zImage file
 
+While this isn't a CTF problem, I feel like it fits into this repository.
+
 This journey starts with the following [stack overflow post](https://stackoverflow.com/questions/76571876/how-to-repack-vmlinux-elf-back-to-bzimage-file/78061741#78061741)
 
-If you read through the original question, we see that the author has a bzImage file ("from some IOT devices") that they want to modify.
+If you read through the original question, we see that the author has a bzImage file ("from some IOT devices") that they want to modify. The reason for doing this is inconsequential.
 
-### Persistence
-I'd like to outline my thought process and how I would approach this problem. Usually I would take notes about what I tried, what didn't work, and what did work. This takes a lot of effort and would make this post much longer, so I'm going to just outline what worked. But please please know that going into this process there was a lot that I did not know and I:
+### Thought Process and not giving up.
+
+I'd like to outline my thought process and how I would approach this problem. Usually I would take notes about what I tried, what didn't work, and what did work. This takes a lot of effort and would make this post much longer, so I'm going to outline what worked. But please, please, know that going into this process there was a lot that I did not know and I:
 
 * made many attempts that resulted in failure, 
 * had to backtrack and try something else, many of which also failed
-* look and think about the problem from a different point of view
+* had to look and think about the problem from different points of view
 
 The key is persistence, to be successful in Reverse Engineering, you need to have persistence. 
-> How you think is more important than what you know.
 
-NOTE: A `zImage` you encounter may be different than what I outline here, it may have `initrd` baked in, it may have a different compression etc... The offsets of things will be different. This serves as a guide to "how to think about the problem".
+> <h3> __NOTE__: How you think is more important than what you know.
+
+ Please also note that the `zImage` or `bzImage` you encounter may be different than what I outline here, it may have `initrd` baked in, it may have a different compression etc... The offsets of things will be different. This serves as a guide to "how to think about the problem" and you will have to adjust accordingly.
 
 ### Goals
 
 I'll make some assumption and set some goals.
 
-1) While we may have the kernel source code, we may not have the right tool chains or all the modifications necessary to recreate the kernel exactly.
+1) While we may have the kernel source code, we may not have the right tool chains or all the modifications necessary to recreate the kernel exactly
 1) We must be able to "modify program control flow statically"
 1) We must be able to repack the file in such a way as to still boot
 
@@ -28,25 +32,25 @@ I'll make some assumption and set some goals.
 ### Approach
 Here is a high level "path" I want to go down to reproduce and test things along the way.
 
+1) Compile our own IOT firmware to boot and run under QEMU
+    * Working on an embedded device brings a lot of other problems with it (Bootloader, JTAG, Peripherals etc...)
+    * We want to get the methodology and approach correct before attempting to do any modifications on firmware that will be loaded on a device.
+    * If we make a mistake on the device, we need to make sure we have a way to recover the device if it's no longer booting. etc...
 1) Locate and use Kernel source as close to the original question 
     * I'm less interested in getting it exactly the same since this can serve as a guide, and the exact version of kernel is not important, as long as it's the same Major Version
 1) Pick an architecture
     * Since the post mentions IOT, I think `x86` is out.
     * `ARM` is very a very popular choice, so lets use that.
-1) Compile our own IOT firmware to boot and run under QEMU
-    * Working on an embedded device brings with it a lot of other problems (Bootloader, JTAG, Peripherals etc...)
-    * We want to get the methodology and approach correct before attempting to do any modifications on firmware that will be loaded on a device.
-    * If we make a mistake on the device, we need to make sure we have a way to recover the device if it's no longer booting. etc...
 1) Successfully boot our IOT emulated firmware with QEMU
 1) Figure out how the zImage is created and how we can extract the kernel from it
-1) Figure out how to recompress the kernel and pack it back into the zImage file.
+1) Figure out how to recompress the kernel and pack it back into the zImage file
 1) Make modifications to the extracted kernel and repack that modified file
 1) Make sure everything still boots correctly.
 
 
 ## Find a kernel close to the requested version
 
-For those unfamiliar with `buildroot`, it's an awesome framework to build a whole system from scratch. I picked this approach because it's easy and I want to get on with things. Finding a `3.x` kernel version was done by looking at the git history on the `arm` default config file for `vexpress`.  
+For those unfamiliar with `buildroot`, it's an awesome framework to build a whole system from scratch. I picked this approach because it's easy and I want to get on with things. Finding a `3.x` kernel version was done by looking at the git history on the `arm` default config file for `vexpress`. I picked the very first commit where this file was checked in.
 
 ```
 git clone https://github.com/buildroot/buildroot.git
@@ -58,7 +62,7 @@ git checkout b184e46dd3a302c4517c781d90da6405576edf6a
 
 Based off of previous experience, I have learned that compiling old source with new toolchains and system is usually a major pain in the a$$...
 
-Create a dockerfile that can be used to build the kernel... So I created a Dockerfile with the necessary tools to get things compiled.
+So I created a Dockerfile with the necessary tools to get things compiled on an older OS.
 
 Build the container and start it, make sure we volume mount our current working directory so we have access to the buildroot sources.
 ```bash
@@ -97,6 +101,7 @@ _GL_WARN_ON_USE (gets, "gets is a security hole - use fgets instead");
 
 Continue running `make`, go grab a coffee or your favorite beverage, and wait for it to complete...
 
+
 ### Booting the Firmware
 
 Yay, we have a successful build. We can now boot our "IoT" firmware.
@@ -114,9 +119,9 @@ qemu-system-arm: Invalid SD card size: 2.26 MiB
 SD card size has to be a power of 2, e.g. 4 MiB.
 ```
 
-Resize to 32M to make it happy:
+Resize to 4M to make it happy:
 ```bash
-$ sudo qemu-img resize output/images/rootfs.ext2 32M
+$ sudo qemu-img resize output/images/rootfs.ext2 4M
 ```
 
 Create a script to change the interrupt key to something other than `ctrl-c`:
@@ -207,10 +212,12 @@ We can see `0x878` looks like it's a function, and if we look at function `sub_8
 We can see this function matches the source here: [https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134-L154](https://elixir.bootlin.com/linux/v3.3.4/source/arch/arm/boot/compressed/misc.c#L134-L154)
 
 We see that the calling convention for the function is:
+
 ```c
 ret = do_decompress(input_data, input_data_end - input_data, output_data, error);
 ``` 
-So the second argument is the size of the image. When we look back at the `sub_8d4` function, there is a call to `sub_32d4`. We need to look at the asm to see what's really going on:
+
+The second argument is the size of the image. When we look back at the `sub_8d4` function, there is a call to `sub_32d4`. We need to look at the asm to see what's really going on:
 
 ```asm
 ldr     r0, [r4, r3]  ; Load into r0 the value from memory at address r4+r3 (data_252374)
@@ -275,7 +282,7 @@ We have made sure that without modifications we were able to recreate the zImage
 
 ### Changing a simple string
 
-We can make a simple change in the `extracted_kernel.patched` file. We need to make sure we don't change the length and offset, otherwise everything falls apart. So we can edit the file in place with `sed`
+We can make a simple change in the `extracted_kernel.patched` file. We need to make sure we don't change the length and offset, otherwise everything falls apart. We can edit the file in place with `sed`
 ```bash
  sed -i 's/#1 SMP Wed Feb 28 15:3/Hello from hacker land/' extracted_kernel.patched
  ```
@@ -306,7 +313,7 @@ We should outline some goals and assumptions before we begin.
 1) In order to make our work easier, we should try to recover symbols
 1) Manual modifications are nice, but I'd prefer a script that can patch the kernel for us
 1) We should try to keep this in Python without needing paid software
-   - I would normally script this in Binary Ninja, but not everyone has a paid license, so we won't use Binja
+   - I would normally script this in Binary Ninja, but not everyone has a paid license, therefore we won't use Binja
 
 #### Symbol Recovery
 
@@ -331,7 +338,7 @@ This allows us to now open the ELF file with Python, look up symbol offsets, and
 
 The next thing to do is deciding what we want to hook. I decided I wanted to hook `execve` so that I could add a check whenever something is run.
 
-Now we need to find a location to write our code. We don't want to add any space to the end of the file, and we want the code to be located in the executable section. So we can look around to find any unused code and just try to reclaim that space.
+Now we need to find a location to write our code. We don't want to add any space to the end of the file, and we want the code to be located in the executable section. We should look around to find any unused code and just try to reclaim that space.
 
 After looking through the symbols for a while, I spotted the following: `sony_probe`. This strikes me as a bit strange. A `sony` specific driver in the kernel. Turns out it's part of a driver for a PS2 HID. Well I don't know about you, but I think that's a great location. It's a large function, it is unlikely to be used in an embedded device (or QEMU system), and so that's where we'll place our code.
 
@@ -344,7 +351,7 @@ PUSH    {lr}
 POP     {pc}
 ```
 
-This is placed at the start of the function, so that if it is ever called, it will just immediately return.
+This is placed at the start of the function. It is a safeguard in the case that this function is ever called, it will just immediately return.
 
 We need to write the rest of our code.
 ```asm
