@@ -321,7 +321,7 @@ We should outline some goals and assumptions before we begin.
 
 #### Symbol Recovery
 
-Working without symbols is a pain in the a$$. We have access to a wonderful tool called `vmlinux-to-elf` that rebuilds symbols and puts it in a convenient elf file. We can't just use compress the resulting ELF file, but we can totally use it for symbol information.
+Working without symbols is a pain in the a$$. We have access to a wonderful tool called [`vmlinux-to-elf`](https://github.com/marin-m/vmlinux-to-elf) that rebuilds symbols and puts it in a convenient elf file. We can't just use compress the resulting ELF file, but we can totally use it for symbol information.
 
 ```bash
 vmlinux-to-elf extracted_kernel extracted_kernel.elf 
