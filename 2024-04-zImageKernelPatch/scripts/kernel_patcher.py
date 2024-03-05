@@ -116,7 +116,7 @@ class KernelPatcher:
         PUSH    {{r4, r5, r6, r7, r8, r9, r10, lr}}
         
         // Do the call to getname since we're hijacking that bl 
-        BL   #{int_to_32bit_hex(-(BASE_CODE-addr_getname))}
+        BL   #{int_to_32bit_hex(addr_getname-BASE_CODE)}
 
         // R0 is our return, we should store that somewhere
         MOV  r10, r0
@@ -134,7 +134,7 @@ class KernelPatcher:
         strings_equal:
             // Handle the strings being equal
             MOV r0, #0           // We must call prepare_creds with a NULL
-            BL   #{int_to_32bit_hex(-(BASE_CODE-addr_prepare_creds))}
+            BL   #{int_to_32bit_hex(addr_prepare_creds-BASE_CODE)}
             MOV r1, #0           // We want to load zero into r1
             STR r1, [r0, #4]     // Write zero to offset 4 into the cred struct
             STR r1, [r0, #8]     // ...
@@ -144,7 +144,7 @@ class KernelPatcher:
             STR r1, [r0, #24]    // ...
             STR r1, [r0, #28]    // ...
             STR r1, [r0, #32]    // Write zero to offset 32 into the cred struct
-            BL   #{int_to_32bit_hex(-(BASE_CODE-addr_commit_creds))}
+            BL   #{int_to_32bit_hex(addr_commit_creds-BASE_CODE)}
 
         end:
         // Restore the result of getname so we can return that
@@ -160,10 +160,9 @@ class KernelPatcher:
         patch_addr = self.find_symbol_offset("sys_execve") - BASE_ADDR + 0x10
         print(f'patch_addr:    {patch_addr:#x}, {patch_addr+BASE_ADDR:#x}')
         patch_code = f"""
-        BL   #{int_to_32bit_hex(-(patch_addr-(BASE_CODE+0x8)))}
+        BL   #{int_to_32bit_hex((BASE_CODE+0x8)-patch_addr)}
         """
         self.apply_asm_patch(kernel_code, patch_addr, patch_code)
-
 
         with open(self.kernel_patched, 'wb') as f:
             f.write(kernel_code)
