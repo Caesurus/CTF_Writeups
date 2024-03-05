@@ -40,13 +40,12 @@ Here is a high level "path" I want to go down to reproduce and test things along
     * I'm less interested in getting it exactly the same since this can serve as a guide, and the exact version of kernel is not important, as long as it's the same Major Version
 1) Pick an architecture
     * Since the post mentions IOT, I think `x86` is out.
-    * `ARM` is very a very popular choice, so lets use that.
+    * `ARM` is a very popular choice, so lets use that.
 1) Successfully boot our IOT emulated firmware with QEMU
 1) Figure out how the zImage is created and how we can extract the kernel from it
 1) Figure out how to recompress the kernel and pack it back into the zImage file
 1) Make modifications to the extracted kernel and repack that modified file
 1) Make sure everything still boots correctly.
-
 
 ## Find a kernel close to the requested version
 
@@ -62,7 +61,7 @@ git checkout b184e46dd3a302c4517c781d90da6405576edf6a
 
 Based off of previous experience, I have learned that compiling old source with new toolchains and system is usually a major pain in the a$$...
 
-So I created a Dockerfile with the necessary tools to get things compiled on an older OS.
+So I created a [Dockerfile](./container_build/Dockerfile) with the necessary tools to get things compiled on an older OS.
 
 Build the container and start it, make sure we volume mount our current working directory so we have access to the buildroot sources.
 ```bash
@@ -140,6 +139,7 @@ Thats was a lot of effort, but it's worth it in order to be able to understand t
 ## Actually start on the problem
 
 ### Learning about `zImage` files
+
 The post talks about `bzImage`, our buildroot produced a `zImage`. For the purposes of this guide I'm just going to use the `zImage`. Adjustments should be made for a `bzImage` as needed.
 
 File we need to look at: `output/images/zImage`
@@ -175,7 +175,7 @@ $ ls -la extracted*.gz
 -rw-rw-r-- 1 caesurus caesurus 2415664 Feb 28 16:11 extracted_original.gz
 -rw-rw-r-- 1 caesurus caesurus 2415607 Feb 28 16:12 extracted_recompressed.gz
 ```
-We have a `57`byte size difference, but lets see if the rest of the data is the same... or at least similar enough.
+We have a `57` byte size difference, but lets see if the rest of the data is the same... or at least similar enough.
 
 ```bash
 $ xxd extracted_original.gz > ex_org.hex
@@ -206,7 +206,7 @@ We observe that the binja has recognized these as `int32_t` and we see there are
 
 If we look a bit closer, we see the `0x4768` value, which is `18280`. If we remember the `binwalk` output, we see that is the start of the `gz` file in `zImage`. So that's something that makes sense.
 
-The other values are all in the `0x2523nn` range, and if we observe the offsets on the right, we can conclude these are probably offsets as well, probably to space at the end of the file etc... 
+The other values are all in the `0x2523nn` range, and if we observe the offsets on the left, we can conclude these are probably offsets as well, probably to space at the end of the file etc... 
 
 We can see `0x878` looks like it's a function, and if we look at function `sub_8d4` we can see a string that looks like an error being passed to it.
 
@@ -256,11 +256,9 @@ Excellent article that addresses recreating zImage with larger kernels and `xz` 
 https://jamchamb.net/2022/01/02/modify-vmlinuz-arm.html
 I would highly recommend reading the article and understanding the contents there. I decided I still wanted to create the functionality myself, but there is no shame in just using existing tools out there.
 
-[zImage_repacker.py](./scripts/zImage_repacker.py)
+Here is the script I ended up creating: [zImage_repacker.py](./scripts/zImage_repacker.py)
 
-Once we run this, we can boot our patched kernel! 
-First we try to run it without modifying anything:
-
+First we try to run it without modifying the extracted kernel. What we're trying to do here is verify that our logic is correct and we can recreate the original `zImage` file:
 ```bash
 $ ./scripts/zImage_repacker.py 
 usage: zImage_repacker.py [-h] (-x | -c) -i zImage_file
@@ -268,7 +266,15 @@ zImage_repacker.py: error: the following arguments are required: -i/--input
 $ ./scripts/zImage_repacker.py -x -i zImage
 [+] Extracting kernel from zImage
 [+] Decompressing to extracted_kernel
+```
+
+Our script will be looking for `extracted_kernel.patched` so manually create it:
+```bash
 $ cp extracted_kernel extracted_kernel.patched
+```
+
+Now try to repack it:
+```bash
 $ ./scripts/zImage_repacker.py -c -i zImage  
 [+] Compressing kernel from zImage
 [+] Compressing kernel from extracted_kernel.patched > vmlinux_recompressed.gz
@@ -279,7 +285,7 @@ a902f7320c3a7d5bb102af76fa018f33  zImage
 a902f7320c3a7d5bb102af76fa018f33  zImage_patched
 ```
 
-We have made sure that without modifications we were able to recreate the zImage file exactly, the patched version has the exact same `md5sum` as the original. 
+We have made sure that without modifications we were able to recreate the `zImage` file exactly, the patched version has the exact same `md5sum` as the original. 
 
 
 ## Modifying the Kernel
@@ -287,11 +293,13 @@ We have made sure that without modifications we were able to recreate the zImage
 ### Changing a simple string
 
 We can make a simple change in the `extracted_kernel.patched` file. We need to make sure we don't change the length and offset, otherwise everything falls apart. We can edit the file in place with `sed`
+
 ```bash
  sed -i 's/#1 SMP Wed Feb 28 15:3/Hello from hacker land/' extracted_kernel.patched
  ```
 
-Now we can boot:
+Now we can boot and check whether our change was made correctly:
+
 ```bash
 Starting network...
 
@@ -303,9 +311,9 @@ Linux buildroot 3.3.4 Hello from hacker land1:25 UTC 2024 armv7l GNU/Linux
 ```
 YAY, we see that our change shows up when we do a `uname -a`!!!
 
-That's pretty cool, and at this point we can say we have addressed the original question. The extracted_kernel file is available for manual modification with your favorite tool.
+That's pretty cool, and at this point we can say we have addressed the original question. The `extracted_kernel.patched` file is available for manual modification with your favorite tool.
 
-But come on... we can do better. This is an old Kernel with no real mitigations, so let's have some fun. 
+But come on... we can do better. This is an old Kernel with no real mitigations, so let's have some fun.
 
 ### Custom rootkit
 
@@ -321,7 +329,7 @@ We should outline some goals and assumptions before we begin.
 
 #### Symbol Recovery
 
-Working without symbols is a pain in the a$$. We have access to a wonderful tool called [`vmlinux-to-elf`](https://github.com/marin-m/vmlinux-to-elf) that rebuilds symbols and puts it in a convenient elf file. We can't just use compress the resulting ELF file, but we can totally use it for symbol information.
+Working without symbols is a pain! We have access to a wonderful tool called [`vmlinux-to-elf`](https://github.com/marin-m/vmlinux-to-elf) that rebuilds symbols and puts it in a convenient elf file. We can't just use compress the resulting ELF file, but we can use it for symbol information.
 
 ```bash
 vmlinux-to-elf extracted_kernel extracted_kernel.elf 
@@ -421,7 +429,7 @@ This gives us a nice error message...
     raise Exception(f"Compressed size is larger than allowed. {len(compressed_data)} > {original_gz_size}")
 Exception: Compressed size is larger than allowed. 2415615 > 2415607
 ```
-Oh no... what now? Well, the compressed image is just a bit too large. We can do something about that though. We can find and replace some existing string in the kernel with a bunch of nulls (which are more compressible). We'll add that to the [kernel_patcher.py](./scripts/kernel_patcher.py) script. 
+Oh no... what now? The compressed image is just a bit too large. We can do something about that though. We can find and replace some existing string in the kernel with a bunch of nulls (which are more compressible). We'll add that to the [kernel_patcher.py](./scripts/kernel_patcher.py) script. 
 
 ```python
     long_useless_message = "Please see the file Documentation/feature-removal-schedule.txt in the kernel source tree for more details"
@@ -528,7 +536,7 @@ ls: can't open '/root': Permission denied
 ```
 We see that we are user `1001` and that we don't have access to `/root`.
 
-We can create a script called `alarmtimer`, set it to exectuable, and run it, it will in turn create a new shell with elevated permissions. This now allows us to access the system as if we were the `root` user.
+Our patched code checks whether the executable being run is called `alarmtimer`... Therefore we can create a script called `alarmtimer`, set it to exectuable, and run it. When that is executed, everything it runs will be run with `uid=0`. We can have it create a new shell with elevated permissions. This now allows us to access the system as if we were the `root` user. 
 
 ```bash
 $ cat alarmtimer 
