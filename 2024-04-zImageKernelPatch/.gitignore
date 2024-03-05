@@ -1,0 +1,6 @@
+extracted_kernel*
+rootfs.ext2
+vmlinux.gz
+vmlinux_recompressed.gz
+zImage_patched
+
