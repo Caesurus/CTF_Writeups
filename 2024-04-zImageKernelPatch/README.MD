@@ -1,6 +1,6 @@
 # Unpacking, Patching, and Repacking a zImage file
 
-While this isn't a CTF problem, I feel like it fits into this repository.
+While this isn't a CTF problem, this is a fitting location to store this post.
 
 This journey starts with the following [stack overflow post](https://stackoverflow.com/questions/76571876/how-to-repack-vmlinux-elf-back-to-bzimage-file/78061741#78061741)
 
