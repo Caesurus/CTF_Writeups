@@ -104,7 +104,6 @@ payload += 'w'
 io.sendline(payload)
 ```
 
-This time we just to the location in main that sets up the correct calling convention to `win()` with our level `5`, and we get the flag printed out.
-
+This time we jump to the location in main that sets up the correct calling convention to `win()` with our level `5`, and we get the flag printed out.
 
 All in all this was a fun little challenge. You have to understand what is going on in memory, how to get to the offsets you need to modify, and need to know how to change the execution control to have the program do what you want it to.
