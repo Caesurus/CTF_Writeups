@@ -1,0 +1,6 @@
+gdb -p `pidof hft` -ex "b *main+154" -ex "b *main+190" 
+#-ex "b *0x001555552ea000+0xebcf5"
+#-ex "b *malloc+371" 
+#-ex "b *_int_malloc+1629" -ex "b *_int_malloc+1205"
+#-ex "heap-analysis-helper"
+#-ex "b *0x1555553aad60" -ex "b *0x1555553aac44" 
