@@ -391,7 +391,7 @@ At that point, I went to check on my kids and tell them to go to bed. My son too
 
 ---
 
-The next morning something was bugging me, and I decided to retest all of the `one-gadget`. Turns out that there was a successful gadget: `0xebcf5`. So with that problem solved we now just had to figure out the last problem. Heap-spay strategies!
+The next morning something was bugging me, and I decided to retest all of the `one-gadget`. Turns out that there was a successful gadget: `0xebcf5`. So with that problem solved we now just had to figure out the last problem. Heap-spray strategies!
 
 I mean... I had "solved" the challenge right? I got execution control! But not on the remote server and I didn't get a `flag`... so NO solve yet. We can't give up!
 
