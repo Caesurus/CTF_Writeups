@@ -478,3 +478,14 @@ I ran `4` concurrent instances of the exploit locally for ~`4 hours`, round abou
 
 So that's a `0.007%` success rate. It's very very low, but enough to get us the flag!
 
+
+# Other Write-Ups and solves
+
+Turns out getting a `free()` to happen is possible, and some of the things I tried would have worked if I kept trying.
+
+- [https://eth007.me/blog/posts/high-frequency-troubles/](https://eth007.me/blog/posts/high-frequency-troubles/)
+- [https://hackmd.io/@Zzzzek/r14x13FRp#high-frequency-troubles](https://hackmd.io/@Zzzzek/r14x13FRp#high-frequency-troubles)
+- [https://gist.github.com/unvariant/d9ae2d4abed948747ee4a93ce0ccb1c0](https://gist.github.com/unvariant/d9ae2d4abed948747ee4a93ce0ccb1c0)
+
+Also worth mentioning, this blog post by the author of the challenge, regarding `setcontext32` which is "a neat method to convert arbitrary write to flexible arbitrary code execution"
+- [https://hackmd.io/@pepsipu/SyqPbk94a](https://hackmd.io/@pepsipu/SyqPbk94a)
